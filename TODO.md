@@ -158,6 +158,11 @@ interactions are clearly identified and safely gated.
 
 ## M4 — Validate and release
 
+**Additional release dependency:** Resolve and verify the confirmed P0 join blocker
+in [M5](#m5--restore-scene-loading-after-save-transfer--p0) before sign-off. Triage
+M6–M8 separately; any further confirmed P0/P1 defects also block release. The automated
+results below remain historical evidence, not validation of the newly reported failure.
+
 - [ ] Run two-player regression tests on fresh 1.0 saves and migrated 0.70.3 saves.
 - [ ] Test the supported baseline mod set, then supported optional mod combinations.
 - [ ] Resolve all P0/P1 defects within the declared support scope.
@@ -203,3 +208,86 @@ tests, metadata audit, or candidate build. **Release sign-off remains pending.**
 
 **Exit criteria:** Build and formatting checks pass, two-player validation passes,
 and the release declares its tested compatibility and limitations.
+
+## New evidence — Supplied 1.3.2 log
+
+The supplied guest log reports CardShopCoop **1.3.2**, game **1.00**, Unity
+**6000.0.66f2**, Windows x64, BepInEx **5.4.23.5**, and Configuration Manager **19.0**.
+Host build and mod details remain unverified. Player names and Steam IDs are omitted.
+
+The save arrives before scene loading fails; this is evidence of transfer progress,
+not a successful join. The log does not establish another avatar initialization
+failure or complete any previously pending gameplay checks.
+
+## M5 — Restore scene loading after save transfer · P0
+
+**Confirmed:** The guest receives the save, then loading `Start` fails because the
+scene is unavailable. The native loading coroutine subsequently throws a
+null-reference exception. The current native startup constant and title-screen flow
+use `StartOptimized`.
+
+- [ ] Replace the legacy scene name in `SaveTransfer.ForceLoadSlot` with the game's
+  current startup scene, verified against its native constant and title-screen flow:
+  `StartOptimized`.
+- [ ] Validate scene availability before starting the load.
+- [ ] Handle rejected, failed, or stalled loads with a clear error and session
+  cleanup while preserving guest-save protection.
+- [ ] Extend regression coverage to scene names and failure recovery; the existing
+  method-signature audit missed this mismatch.
+- [ ] Verify first join, reconnect, automatic hosting, and fresh/migrated saves in-game.
+
+This milestone contributes to [M1's join acceptance criteria](#m1--reproduce-and-restore-joining)
+but addresses a separate scene-loading failure, not another confirmed avatar failure.
+
+**Exit criteria:** The guest reaches a usable shop, or receives a recoverable failure
+without damaging personal saves.
+
+## M6 — Handle Steam initialization correctly · P2
+
+**Observed:** Persona lookup throws “Steamworks is not initialized,” although an
+invite and connection succeed later. This caught startup error is distinct from the
+confirmed scene-loading blocker.
+
+- [ ] Distinguish Steam assembly presence, a running Steam client, and initialized
+  Steamworks APIs.
+- [ ] Defer persona, lobby, and invitation API calls until initialization completes;
+  retry without repeated warning noise.
+- [ ] Make startup status accurately describe current readiness.
+- [ ] Test delayed initialization, unavailable Steam, invitation handling after
+  readiness, and LAN fallback.
+
+**Exit criteria:** Expected startup delays do not generate exceptions or prevent
+later connections.
+
+## M7 — Make optional-mod diagnostics actionable · P2
+
+**Observed:** Grading Overhaul and TV integration emit numerous missing-type/member
+warnings despite those mods not being loaded.
+
+- [ ] Detect absent optional plugins before probing their members.
+- [ ] Report an absent integration once at informational level.
+- [ ] Preserve actionable warnings when an installed integration has incompatible APIs.
+- [ ] Avoid warning about an absent enum registry when both peers have no modded IDs;
+  retain warnings for failed registry transfer.
+- [ ] Test absent, compatible, and incompatible optional integrations.
+
+**Exit criteria:** Vanilla startup is quiet, while genuine integration failures
+remain visible.
+
+## M8 — Verify platform assumptions and attribute remaining warnings
+
+**Unverified:** The log reports Xbox-container saving; that label alone does not
+establish the actual save backend. The HTTP 404 and `DontDestroyOnLoad` warnings lack
+sufficient attribution.
+
+- [ ] Verify the active save backend against native behavior and save-completion
+  evidence; distinguish detection heuristics from confirmed results.
+- [ ] Track outdated Unity 2021.3 documentation against the observed Unity 6 runtime.
+- [ ] Obtain host-side evidence and compare save-transfer behavior across the intended
+  Steam/Game Pass matrix.
+- [ ] Identify the HTTP request and object-lifetime warning sources before assigning fixes.
+- [ ] Record whether those warnings affect gameplay; do not classify them as join
+  blockers without evidence.
+
+**Exit criteria:** Platform/save claims are supported, and remaining warnings have
+an identified owner and impact or an explicit unresolved status.
