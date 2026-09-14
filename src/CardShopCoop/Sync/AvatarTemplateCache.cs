@@ -14,7 +14,10 @@ namespace CardShopCoop.Sync
         private bool _female;
         private TTemplate _current;
 
-        internal AvatarTemplateCache(Action<TTemplate> destroy) { _destroy = destroy; }
+        internal AvatarTemplateCache(Action<TTemplate> destroy)
+        {
+            _destroy = destroy;
+        }
 
         internal TTemplate Get(TSource source, bool female, Func<TTemplate, bool> alive,
             Action<TTemplate> initialize, Action<TTemplate, Exception> failed)
@@ -41,7 +44,10 @@ namespace CardShopCoop.Sync
             catch (Exception e)
             {
                 _failed[slot] = source;
-                try { failed(candidate, e); }
+                try
+                {
+                    failed(candidate, e);
+                }
                 finally { _destroy(candidate); }
                 return null;
             }

@@ -48,9 +48,13 @@ namespace CardShopCoop.Sync
             NormalizeCharacterData(custom, data);
             custom.CharacterName = data.CharacterName;
             custom.StoredCharacterData = data;
+            // Match Initialize's ResetParts step without reloading an unsanitized preset.
+            if (custom.CharacterMeshes != null)
+                foreach (var mesh in custom.CharacterMeshes)
+                    if (mesh != null)
+                        mesh.enabled = true;
             custom.ApplyCharacterVars(data);
         }
-
         internal static string Describe(CC.CharacterCustomization custom)
         {
             if (custom == null)

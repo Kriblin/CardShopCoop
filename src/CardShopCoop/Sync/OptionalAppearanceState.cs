@@ -7,7 +7,10 @@ namespace CardShopCoop.Sync
         // Appearance is optional: returning null omits its message, not the world transfer.
         internal static T Build<T>(Func<T> build, Action<Exception> report) where T : class
         {
-            try { return build(); }
+            try
+            {
+                return build();
+            }
             catch (Exception e)
             {
                 report(e);
