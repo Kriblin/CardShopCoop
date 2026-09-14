@@ -149,6 +149,7 @@ namespace CardShopCoop.Net.Messages
         public int SmellyCustomerCleaned;
         public int ManualCheckoutCount;
         public int GemMintCardObtained;
+        public int DuelWinCount;
         public int ReviewCount;        // lifetime m_CustomerReviewCount (sequence number)
         public float ReviewScoreAverage;
         public List<ReportReviewEntry> Reviews = new List<ReportReviewEntry>();
@@ -186,6 +187,7 @@ namespace CardShopCoop.Net.Messages
     [NetworkMessage(MsgType.TournamentState, Policy = MessagePolicy.ClientOnly)]
     public sealed class TournamentStateMessage : INetMessage
     {
+        public CardShopCoop.Sync.TcgPlayerState Player = new CardShopCoop.Sync.TcgPlayerState();
         public byte Flags; // bit0 IsHostingTournament, bit1 IsTournamentDay, bit2 IsTournamentDayOver
         public int MaxPlayerCount;
         public int SignedUpCustomerCount;
@@ -260,6 +262,7 @@ namespace CardShopCoop.Net.Messages
     {
         public byte Index;
         public bool Occupied;
+        public bool PlayerOccupied;
         public List<TableSeatEntry> Seats = new List<TableSeatEntry>();
     }
 
