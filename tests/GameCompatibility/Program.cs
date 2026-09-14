@@ -209,7 +209,36 @@ foreach (var field in marketFields)
     Require(UsesField(Method("MarketSync", "WireChecksumFromLists"), "CPlayerData", field.Name), "local checksum includes " + field.Name);
 }
 Require(UsesField(Method("GamePatches", "GenerateCardMarketPriceBlockPrefix"), "CPlayerData", "m_GenCardMarketPriceListAscension"), "generation guard includes Ascension");
+// M3: native ownership, persistence, and host-only battle/reward boundaries.
+foreach (string name in new[] { "m_DeckCompactCardDataList", "m_CurrentSelectedDeckIndex", "m_PlayerTournamentData", "m_IsPlayerRegisteredForTournament" })
+{
+    Require(UsesField(Method("CGameData", "SaveGameData"), "CPlayerData", name), "native TCG save includes " + name);
+    Require(UsesField(Method("CGameData", "PropagateLoadData"), "CPlayerData", name), "native TCG load restores " + name);
+    Require(UsesField(Method("TcgPlayerState", "Capture"), "CPlayerData", name), "TCG capture includes " + name);
+    Require(UsesField(Method("TcgPlayerState", "Apply"), "CPlayerData", name), "TCG apply includes " + name);
+}
+Require(Calls(Method("DeckListScreen", "DeleteDeck"), "CPlayerData", "AddCard"), "deleting a native deck returns its cards");
+Require(Calls(Method("DeckCardPlusMinusScreen", "OnPressAddBtn"), "CPlayerData", "ReduceCard"), "native deck addition consumes inventory cards");
+Require(Calls(Method("DeckCardPlusMinusScreen", "OnPressRemoveAllBtn"), "CPlayerData", "AddCard"), "native deck removal returns inventory cards");
+Require(Calls(Method("DeckEditScreen", "OnPressPasteButton"), "CPlayerData", "AddCard")
+    && Calls(Method("DeckEditScreen", "OnPressPasteButton"), "CPlayerData", "ReduceCard"), "native paste exchanges collection cards");
+Require(Calls(Method("PlayTableGame", "EvaluateEndGameGift"), "ItemSpawnManager", "GetItem"), "battle gifts create host items");
+Require(Calls(Method("PlayTableGame", "TakeEndGameGiftItem"), "InteractionPlayerController", "AddHoldItemToFront"), "battle gifts go to the host hand");
+var exitSteps = Find("PlayTableGame").NestedTypes.Where(t => t.Name.Contains("DelayExit")).SelectMany(t => t.Methods);
+Require(exitSteps.Any(m => Calls(m, "PlayTableGame", "EvaluateEndGameGift"))
+    && exitSteps.Any(m => Calls(m, "PlayTableGame", "TakeEndGameGiftItem")), "native exit coroutine creates and collects gifts");
+Require(Calls(Method("TournamentSync", "BuildState"), "TcgPlayerState", "Capture")
+    && Calls(Method("TournamentSync", "BuildState"), "TcgPlayerState", "PlayerBracket"), "tournament message captures player state and sentinel");
+Require(Calls(Method("TournamentSync", "ClientApplyInner"), "TcgPlayerState", "Apply"), "guest applies authoritative TCG state");
+Require(!Find("TcgPlayerState").Methods.Any(m => Calls(m, "CPlayerData", "AddCard") || Calls(m, "CPlayerData", "ReduceCard")
+    || Calls(m, "ItemSpawnManager", "GetItem")), "TCG snapshots never replay inventory/reward operations");
+Require(Calls(Method("PlayTableSync", "HostKickTable"), "TcgAuthority", "PlayerAtTable"), "host validates battle occupancy before guest kick");
+Require(Calls(Method("FurnitureBoxOps", "HostApplyBoxUp"), "TcgAuthority", "PlayerAtTable"), "host validates battle occupancy before guest box-up");
+foreach (string field in new[] { "DeckBox", "Playmat" })
+    Require(Find("TcgDeckState").Fields.Any(f => f.Name == field && f.FieldType.Name == "EItemType"), "deck cosmetic enum translation: " + field);
+Require(UsesField(Method("ReportSync", "BuildState"), "GameReportDataCollect", "duelWinCount")
+    && UsesField(Method("ReportSync", "ClientApplyInner"), "GameReportDataCollect", "duelWinCount"), "daily duel count captured and applied");
 Console.WriteLine($"Game assembly MVID: {Find("CPlayerData").Module.Mvid}; mod version: {Find("MarketSync").Module.Assembly.Name.Version}");
-Console.WriteLine($"Checked {checkedMembers} literal member references, {checkedHooks} patch hooks, and {contracts} save/market contracts; {unresolved} dynamic/helper references require review; {errors} failures.");
+Console.WriteLine($"Checked {checkedMembers} literal member references, {checkedHooks} patch hooks, and {contracts} game integration contracts; {unresolved} dynamic/helper references require review; {errors} failures.");
 foreach (var module in modules) module.Dispose();
 return errors == 0 ? 0 : 1;

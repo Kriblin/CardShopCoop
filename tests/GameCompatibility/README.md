@@ -13,7 +13,7 @@ dotnet run --project tests/GameCompatibility/GameCompatibility.csproj -c Release
 
 Append `--details` to list dynamic references requiring manual review. The tool exits
 nonzero for missing or ambiguous literal members, incompatible Harmony hook arguments,
-or failed native save / market integration assertions.
+or failed native save, market, and TCG integration assertions.
 
 Coverage:
 
@@ -23,12 +23,15 @@ Coverage:
 - Every `CPlayerData.m_GenCardMarketPriceList*` table in the plugin's snapshot DTO,
   capture, apply, and diagnostic checksum paths. New native tables fail this check
   until support is added. Ascension's price-generation guard is also checked.
+- TCG native deck persistence and inventory calls, battle reward coroutine/hand delivery,
+  snapshot capture/apply boundaries, cosmetic enum translation, daily duel counters,
+  and authoritative table kick/box guards.
 - The installed game assembly MVID and built plugin version are printed to identify
   precisely what was inspected.
 
 Limits: this is a source-pattern and metadata audit, not a complete C# semantic analyzer
 or a live Harmony installation test. It cannot prove runtime call order, dynamically
-chosen overloads, Unity behavior, or optional-mod compatibility. For the current M2
+chosen overloads, Unity behavior, or optional-mod compatibility. For the M2/M3
 review, remaining dynamic references are shared patch/reflection helpers, optional
 TV/Grading Overhaul integrations, native save aliases (also asserted explicitly), and
 optional object price-tag lookup. Refer to `TODO.md` for pending in-game validation.
