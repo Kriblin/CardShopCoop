@@ -432,7 +432,7 @@ namespace CardShopCoop.Sync
 
         private static bool InGameLevel()
         {
-            var gm = CSingleton<CGameManager>.Instance;
+            var gm = CGameManager.m_Instance;
             return gm != null && gm.m_IsGameLevel;
         }
 

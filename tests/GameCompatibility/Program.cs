@@ -238,6 +238,23 @@ foreach (string field in new[] { "DeckBox", "Playmat" })
     Require(Find("TcgDeckState").Fields.Any(f => f.Name == field && f.FieldType.Name == "EItemType"), "deck cosmetic enum translation: " + field);
 Require(UsesField(Method("ReportSync", "BuildState"), "GameReportDataCollect", "duelWinCount")
     && UsesField(Method("ReportSync", "ClientApplyInner"), "GameReportDataCollect", "duelWinCount"), "daily duel count captured and applied");
+// InputTooltipUI renders nothing when m_TextSO is missing. CGameManager.Awake
+// publishes the real manager and destroys duplicates; probing the generic singleton
+// before that Awake creates an empty winner with no serialized tooltip assets.
+Require(Find("CGameManager").Fields.Any(f => f.Name == "m_Instance" && f.IsPublic && f.IsStatic
+    && f.FieldType.Name == "CGameManager"), "native game manager exposes the live Awake instance");
+Require(Method("CGameManager", "Awake").Body.Instructions.Any(i => i.OpCode.Code == Mono.Cecil.Cil.Code.Stsfld
+    && i.Operand is FieldReference f && f.Name == "m_Instance" && f.DeclaringType.Name == "CGameManager"),
+    "native Awake publishes the serialized manager");
+Require(Calls(Method("CGameManager", "Awake"), "Object", "Destroy"), "native Awake destroys duplicate managers");
+Require(UsesField(Method("InputTooltipUI", "HasTooltipData"), "CGameManager", "m_TextSO"), "tooltip rendering requires the manager's serialized assets");
+var modMethods = Find("CoopCore").Module.GetTypes().SelectMany(t => t.Methods).Where(m => m.HasBody);
+var unsafeManagerReads = modMethods.Where(m => m.Body.Instructions.Any(i => i.Operand is MethodReference called
+    && called.Name == "get_Instance" && called.DeclaringType is GenericInstanceType singleton
+    && singleton.ElementType.Name == "CSingleton`1" && singleton.GenericArguments.Any(t => t.Name == "CGameManager")))
+    .Select(m => m.FullName).ToList();
+Require(unsafeManagerReads.Count == 0, "plugin never creates a game manager through a readiness probe: " + string.Join(", ", unsafeManagerReads));
+Require(UsesField(Method("CoopCore", "InGameLevel"), "CGameManager", "m_Instance"), "startup readiness reads the native Awake instance");
 Console.WriteLine($"Game assembly MVID: {Find("CPlayerData").Module.Mvid}; mod version: {Find("MarketSync").Module.Assembly.Name.Version}");
 Console.WriteLine($"Checked {checkedMembers} literal member references, {checkedHooks} patch hooks, and {contracts} game integration contracts; {unresolved} dynamic/helper references require review; {errors} failures.");
 foreach (var module in modules) module.Dispose();

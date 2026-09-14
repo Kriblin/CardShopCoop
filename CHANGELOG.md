@@ -5,6 +5,15 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 
 ---
 
+## 1.3.2
+**Key prompts keep their correct labels instead of showing “F” and “Action Name”.**
+
+- Fixed an early startup check that could replace the game's configured manager with
+  an empty one, leaving HUD and settings key labels stuck on their placeholders.
+  Your actual key bindings are unchanged.
+- Restart the game after updating to reload its original UI assets. Game 1.0
+  two-player validation remains pending.
+
 ## 1.3.1
 **Game 1.0 deck and tournament progress now follows the host.**
 

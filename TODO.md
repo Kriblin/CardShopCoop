@@ -1,6 +1,6 @@
 # Game 1.0 compatibility checklist
 
-CardShopCoop version: **1.3.1**. Previously documented tested game version:
+CardShopCoop version: **1.3.2**. Previously documented tested game version:
 **0.70.3**. Target: **TCG Card Shop Simulator 1.0**.
 
 This checklist records a source-based assessment. Two-player runtime verification

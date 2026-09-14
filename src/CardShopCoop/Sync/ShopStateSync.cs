@@ -413,7 +413,7 @@ namespace CardShopCoop.Sync
             var urm = Urm();
             if (urm == null)
                 return;
-            if (CSingleton<CGameManager>.Instance != null && CSingleton<CGameManager>.Instance.m_IsPrologue)
+            if (CGameManager.m_Instance != null && CGameManager.m_Instance.m_IsPrologue)
                 return;
 
             if (kind == 2) // shop lot B

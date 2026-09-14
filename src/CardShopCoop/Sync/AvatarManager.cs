@@ -1278,8 +1278,8 @@ namespace CardShopCoop.Sync
         {
             if (!CoopPlugin.AvatarsEnabled.Value)
                 return;
-            bool inGame = CSingleton<CGameManager>.Instance != null
-                          && CSingleton<CGameManager>.Instance.m_IsGameLevel;
+            bool inGame = CGameManager.m_Instance != null
+                          && CGameManager.m_Instance.m_IsGameLevel;
             if (!inGame)
                 return;
 

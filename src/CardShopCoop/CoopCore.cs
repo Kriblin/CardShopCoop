@@ -1164,7 +1164,10 @@ namespace CardShopCoop
 
         private bool InGameLevel()
         {
-            var gm = CSingleton<CGameManager>.Instance;
+            // Awake publishes the real, serialized manager. The generic Instance getter
+            // can create an empty one before startup, causing the real manager to destroy
+            // itself as a duplicate and leaving every input tooltip at "F / Action Name".
+            var gm = CGameManager.m_Instance;
             return gm != null && gm.m_IsGameLevel;
         }
 
@@ -1661,8 +1664,7 @@ namespace CardShopCoop
             return true;
         }
 
-        // NEVER CSingleton<>.Instance for scene-lifetime managers (CGameManager above
-        // is a REAL persistent singleton and stays on the getter): touched while no
+        // NEVER CSingleton<>.Instance to probe manager readiness: touched while no
         // real manager exists (client reload loading screen - InGameLevel() stays true
         // there - or host mid-session save load) the getter fabricates a fake empty
         // DontDestroyOnLoad manager that shadows the real one for the rest of the run
@@ -4194,7 +4196,7 @@ namespace CardShopCoop
             if (_autoHostSlot >= 0)
             {
                 if (_autoPhase == 0 && _autoTimer > 6f && !InGameLevel()
-                    && CSingleton<CGameManager>.Instance != null)
+                    && CGameManager.m_Instance != null)
                 {
                     CoopPlugin.Log.LogInfo($"AUTO: loading slot {_autoHostSlot}...");
                     Sync.SaveTransfer.ForceLoadSlot(_autoHostSlot);
@@ -4216,7 +4218,7 @@ namespace CardShopCoop
             else if (_autoJoinIp != null)
             {
                 if (_autoPhase == 0 && _autoTimer > 10f && !InGameLevel()
-                    && CSingleton<CGameManager>.Instance != null)
+                    && CGameManager.m_Instance != null)
                 {
                     CoopPlugin.Log.LogInfo($"AUTO: joining {_autoJoinIp}...");
                     Join(_autoJoinIp);
@@ -4229,7 +4231,7 @@ namespace CardShopCoop
             else if (_autoJoinSteamLobby != 0 && _steam != null)
             {
                 if (_autoPhase == 0 && _autoTimer > 10f && !InGameLevel()
-                    && CSingleton<CGameManager>.Instance != null)
+                    && CGameManager.m_Instance != null)
                 {
                     CoopPlugin.Log.LogInfo($"AUTO: joining Steam lobby {_autoJoinSteamLobby}...");
                     JoinSteam(_autoJoinSteamLobby);

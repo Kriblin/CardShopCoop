@@ -42,7 +42,7 @@ Most of the 1.2.0 update is [Meepen](https://github.com/meepen)'s work. Thanks f
 
 ## Game 1.0 compatibility status
 
-Version **1.3.1** targets game **1.0**. Automated checks use Steam build **25304508**;
+Version **1.3.2** targets game **1.0**. Automated checks use Steam build **25304508**;
 two-player gameplay validation is still pending. The previously documented tested
 game version is **0.70.3**. See [TODO.md](TODO.md) for the remaining sign-off checks.
 
