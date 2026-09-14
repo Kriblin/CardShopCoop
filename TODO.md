@@ -1,6 +1,6 @@
 # Game 1.0 compatibility checklist
 
-CardShopCoop version: **1.3.2**. Previously documented tested game version:
+CardShopCoop version: **1.3.3**. Previously documented tested game version:
 **0.70.3**. Target: **TCG Card Shop Simulator 1.0**.
 
 This checklist records a source-based assessment. Two-player runtime verification
@@ -226,15 +226,33 @@ scene is unavailable. The native loading coroutine subsequently throws a
 null-reference exception. The current native startup constant and title-screen flow
 use `StartOptimized`.
 
-- [ ] Replace the legacy scene name in `SaveTransfer.ForceLoadSlot` with the game's
+- [x] Replace the legacy scene name in `SaveTransfer.ForceLoadSlot` with the game's
   current startup scene, verified against its native constant and title-screen flow:
   `StartOptimized`.
-- [ ] Validate scene availability before starting the load.
-- [ ] Handle rejected, failed, or stalled loads with a clear error and session
+- [x] Validate scene availability before starting the load.
+- [x] Handle rejected, failed, or stalled loads with a clear error and session
   cleanup while preserving guest-save protection.
-- [ ] Extend regression coverage to scene names and failure recovery; the existing
+- [x] Extend regression coverage to scene names and failure recovery; the existing
   method-signature audit missed this mismatch.
 - [ ] Verify first join, reconnect, automatic hosting, and fresh/migrated saves in-game.
+
+**Implementation validation (1.3.3, wire 103 unchanged):** The loader uses the
+native startup constant and checks availability before sidecar/save application.
+An owned coroutine follows the native loading-screen/scene sequence and exposes
+rejections and exceptions. A 180-second unscaled deadline covers world application
+and shop readiness, including automatic hosting. Failure ends the session and
+returns to Title once any submitted scene operation completes; protection stays
+active during recovery. A stuck Unity operation or failed Title recovery requires
+a restart. Reconnects are blocked until recovery finishes.
+
+The complete local validation sequence passes: restore, required whitespace check,
+Release build (0 errors, 90 obsolete-API warnings), 32 new world-loading helper
+checks, 108 existing helper checks, four validation-tool checks, and the metadata
+audit (358 member references, 202 hooks, 106 integration contracts). The audit now
+checks the native startup constant and title-screen scene names, not just method
+signatures. See [world-loading tests and runtime matrix](tests/WorldLoading/README.md).
+No deployment or two-player testing was performed; **M5 runtime sign-off remains
+pending**, including personal-save preservation in an actual guest session.
 
 This milestone contributes to [M1's join acceptance criteria](#m1--reproduce-and-restore-joining)
 but addresses a separate scene-loading failure, not another confirmed avatar failure.

@@ -5,6 +5,18 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 
 ---
 
+## 1.3.3
+**Joining now loads the correct Game 1.0 shop scene.**
+
+- Fixed joining stopping after the host's save arrived because the old startup
+  scene no longer exists. Automatic hosting uses the corrected scene too.
+- Missing scenes are detected before applying the received world. Failed loads and
+  loads taking more than three minutes end the session with an error and attempt
+  to return to the title screen. If Unity stays stuck loading, restart the game.
+- Guest-save protection stays active during recovery, including a scene load that
+  finishes after disconnection. Both players need the same plugin version.
+- Game 1.0 two-player verification, including fresh and migrated saves, remains pending.
+
 ## 1.3.2
 **Key prompts keep their correct labels instead of showing “F” and “Action Name”.**
 
