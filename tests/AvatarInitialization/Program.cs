@@ -85,6 +85,17 @@ foreach (bool female in new[] { false, true })
 Throws(() => CharacterTemplate.InitializeFresh(Custom(false), true), "wrong-gender presets are not used");
 Throws(() => CharacterTemplate.InitializeFresh(new CC.CharacterCustomization(), false), "missing presets fail explicitly");
 var throwing = Custom(false);
+var materialBank = new SharedMaterials();
+UnityEngine.Object.SceneObject = materialBank;
+var materialCustomer = Custom(false);
+CharacterTemplate.InitializeFresh(materialCustomer, false);
+Check(ReferenceEquals(materialCustomer.MaterialsStorage, materialBank), "inactive clone resolves material bank before Start");
+var customBank = new SharedMaterials();
+materialCustomer = Custom(false);
+materialCustomer.MaterialsStorage = customBank;
+CharacterTemplate.InitializeFresh(materialCustomer, false);
+Check(ReferenceEquals(materialCustomer.MaterialsStorage, customBank), "serialized material bank is preserved");
+UnityEngine.Object.SceneObject = null;
 throwing.ThrowOnInitialize = true;
 var throwingUi = throwing.UI;
 Throws(() => CharacterTemplate.InitializeFresh(throwing, false), "bootstrap failure propagates to template owner");

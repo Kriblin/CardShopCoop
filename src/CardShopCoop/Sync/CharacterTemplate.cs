@@ -23,6 +23,10 @@ namespace CardShopCoop.Sync
             custom.m_HasInit = false;
             custom.Autoload = false;
             custom.CharacterName = ""; // LoadFromJSON returns before applying any preset.
+            // This clone has not run Start, which normally resolves the shared material bank.
+            // Retain a serialized/custom bank when present; never change the bank's contents.
+            if (custom.MaterialsStorage == null)
+                custom.MaterialsStorage = UnityEngine.Object.FindFirstObjectByType<SharedMaterials>();
             var ui = custom.UI;
             custom.UI = null;
             try

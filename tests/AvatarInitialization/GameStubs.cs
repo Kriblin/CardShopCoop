@@ -2,6 +2,11 @@
 // Initialize deliberately models the game's public flag/private slot-list mismatch.
 namespace UnityEngine
 {
+    public class Object
+    {
+        public static object SceneObject;
+        public static T FindFirstObjectByType<T>() where T : class => SceneObject as T;
+    }
     public class GameObject
     {
     }
@@ -46,6 +51,7 @@ namespace CC
         public UnityEngine.GameObject UI = new();
         public string CharacterName = "Male0";
         public scrObj_Presets Presets = new();
+        public SharedMaterials MaterialsStorage;
         public CC_CharacterData StoredCharacterData;
         public bool ThrowOnInitialize, ThrowOnApply;
         public int Applies;
@@ -86,3 +92,5 @@ namespace CC
         }
     }
 }
+
+public class SharedMaterials { }
