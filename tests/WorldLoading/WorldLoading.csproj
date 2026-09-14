@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/CardShopCoop/Sync/WorldLoadMonitor.cs" Link="WorldLoadMonitor.cs" />
+    <Compile Include="../../src/CardShopCoop/Sync/WorldSceneLoader.cs" Link="WorldSceneLoader.cs" />
+  </ItemGroup>
+</Project>

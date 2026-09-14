@@ -179,6 +179,20 @@ bool UsesField(MethodDefinition method, string declaringType, string name) => me
     && method.Body.Instructions.Any(i => i.Operand is FieldReference f && f.DeclaringType.Name == declaringType && f.Name == name);
 bool Calls(MethodDefinition method, string declaringType, string name) => method?.HasBody == true
     && method.Body.Instructions.Any(i => i.Operand is MethodReference m && m.DeclaringType.Name == declaringType && m.Name == name);
+string startupScene = Find("CGameManager")?.Fields.FirstOrDefault(f => f.Name == "k_StartSceneName")?.Constant as string;
+Require(startupScene == "StartOptimized", "native startup scene is StartOptimized");
+Require(Find("SaveTransfer")?.Fields.FirstOrDefault(f => f.Name == "WorldSceneName")?.Constant as string == startupScene,
+    "built save transfer scene matches installed game constant");
+foreach (string name in new[] { "OnPressStartGame", "OnPressConfirmOverwrite", "OnPressLoadGame" })
+    Require(Method("TitleScreen", name)?.Body.Instructions.Any(i => Equals(i.Operand, startupScene)) == true,
+        "title startup scene in " + name);
+Require(UsesField(Method("CGameManager", "LoadMainLevelAsync"), "CGameManager", "m_LoadGameIndex"),
+    "native load selects m_LoadGameIndex");
+var nativeLoader = Find("CGameManager")?.NestedTypes.FirstOrDefault(t => t.Name.StartsWith("<LoadLobbySceneAsync>"))
+    ?.Methods.FirstOrDefault(m => m.Name == "MoveNext");
+Require(Calls(nativeLoader, "LoadingScreen", "OpenScreen") && Calls(nativeLoader, "SceneManager", "LoadSceneAsync")
+    && Calls(nativeLoader, "LoadingScreen", "SetPercentDone"), "owned loader matches native loading screen and scene APIs");
+Require(UsesField(nativeLoader, "CGameManager", "m_InitLoaded"), "native title recovery resets initialization");
 foreach (string name in new[] { "m_SaveIndex", "m_SaveCycle" })
     Require(Find("CPlayerData").Fields.Any(f => f.Name == name && f.IsStatic), "CPlayerData save counter " + name);
 foreach (string name in new[] { "instance", "m_CurrentDay", "m_PlayerName", "m_SaveIndex" })
