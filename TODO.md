@@ -1,6 +1,6 @@
 # Game 1.0 compatibility checklist
 
-CardShopCoop version: **1.2.0**. Previously documented tested game version:
+CardShopCoop version: **1.3.0**. Previously documented tested game version:
 **0.70.3**. Target: **TCG Card Shop Simulator 1.0**.
 
 This checklist records a source-based assessment. Two-player runtime verification
@@ -40,31 +40,64 @@ whitespace verification passed (build: 0 errors, 87 warnings). All 37 avatar reg
 checks passed. The harness covers copied presets,
 slot normalization, failed-candidate cleanup, retry suppression/reset, and optional
 snapshot exceptions. See [the harness instructions](tests/AvatarInitialization/README.md).
-The local Steam manifest identifies build **25304508**; the repository plugin version
-is **1.2.0**. Host/guest runtime versions and mod sets have not been collected. The exact
+The local Steam manifest identifies build **25304508**; M1 validation used plugin
+version **1.2.0**. Host/guest runtime versions and mod sets have not been collected. The exact
 reported invalid index and two-player behavior remain unverified; M1 is not fully signed off.
 
 **Exit criteria:** Guests can join reliably, including when appearance initialization fails.
 
 ## M2 — Restore existing shop compatibility
 
-- [ ] **P1: Validate Harmony patches and reflected fields against game 1.0.** Check
-  exact method signatures, overloads, and actual call paths; plugin loading alone
-  does not prove that patches still work.
-- [ ] **P1: Close the Ascension market coverage gap.** The game has an Ascension market
-  table, but explicit vanilla market snapshots and checksums omit it, and the client
-  price-generation patch blocks unrecognized expansions.
-  - [ ] Determine which updates the existing generic delta path already covers.
-  - [ ] Include Ascension in snapshot, apply, checksum, and recovery behavior as needed.
-  - [ ] Verify prices on join, daily updates, and reconnect; check for zero or divergent prices.
-  - [ ] Audit pack opening, collection operations, trading, grading, and card displays
-    for assumptions about the older expansion list.
-- [ ] **P1: Audit updated customer and save behavior.** This is a compatibility risk,
-  not yet a reproduced defect.
-  - [ ] Verify tournament customer appearance, persistence, and mirrored state.
-  - [ ] Verify transferred saves, reconnects, and save/reload behavior.
+- [x] **P1: Audit Harmony patches and reflected fields against game 1.0.** The metadata
+  harness checks 326 literal member references and 172 hooks, including signatures,
+  parameter names/types, and instance/result types. No failures on the installed build.
+  - [x] Review dynamic base-game lookups: native save aliases and optional object tags;
+    patch helpers resolve the literal registrations checked above.
+  - [ ] Verify live Harmony installation and gameplay call paths in a two-player session.
+    Optional TV/Grading Overhaul integration testing remains part of the mod matrix in M4.
+- [x] **P1: Implement Ascension market synchronization.** Added its full snapshot table,
+  capture/apply paths, checksums, and guest base-price generation guard.
+  - [x] Confirm existing generic deltas captured only writes observed by the host; they
+    were not a complete join/recovery snapshot for Ascension.
+  - [x] Include Ascension in the full market state and keep it out of the modded-delta path.
+  - [x] Cover wire rounding, base prices (including zero), null/short rows, aliases,
+    repeated updates, and history preservation with 14 production-helper checks.
+  - [x] Audit pack opening, collection operations, trading, grading, and displays:
+    these use the game's expansion-aware CardData / CPlayerData APIs. Card identity
+    copies include expansion, foil, destiny, champion, and grading fields. No additional
+    fixed expansion list was found in those paths.
+  - [ ] Verify Ascension pack pulls, prices, sales, grading, and collection counts on
+    both players after join, a daily price change, reconnect, and save/reload.
+- [x] **P1: Audit updated customer and save behavior.** Native save/load retains the
+  Ascension tables and customer tournament data; transferred saves use the complete
+  native save object. No custom migration was needed for these fields.
+  - [x] Trace tournament load through saved gender/model data and UpdateCharacterModel.
+  - [x] Prepare customer mirrors before activation and apply the host's named preset;
+    normalize detached presets for later wardrobe updates as well.
+  - [x] Resolve the shared material bank normally found by Start before dressing an
+    inactive clone, while preserving a bank already assigned to that clone.
+  - [x] Extend avatar regressions to named tournament presets and material initialization
+    (45 avatar checks now pass, including the earlier M1 coverage).
+  - [ ] Verify tournament customer appearance, pairing-board state, persistence, and
+    mirrored visibility after joining and reconnecting.
+  - [ ] Verify transferred fresh and migrated saves in-game; verify save/reload and
+    confirm the guest's personal save slots remain unchanged.
 - [ ] Run two-player regression checks for checkout, workers, boxes, shelves,
-  furniture, trading, grading, and card displays.
+  furniture, trading, grading, and card displays. Check for lost/duplicated cards,
+  divergent prices, stale customer bodies, and register or worker lockups.
+
+**Implementation validation:** Build, required whitespace verification, market/avatar
+regressions, and the existing shelf-box regression harness pass. The metadata audit
+also passes 61 save/market integration checks, covering all eight native market tables.
+Game assembly MVID: `337b87e1-9427-48d9-aa0a-905bf505d6c0` (matches the reported crash).
+Plugin version is now **1.3.0**, with wire version **103**, because the market message
+contract changed. **Both players must update.**
+
+Harness instructions: [metadata audit](tests/GameCompatibility/README.md),
+[market tests](tests/MarketCompatibility/README.md), and
+[avatar tests](tests/AvatarInitialization/README.md).
+Two-player runtime checks remain pending; M2 is not fully signed off. Playable TCG,
+deck editing, player tournament participation, and their rewards remain M3 work.
 
 **Exit criteria:** Host and guest agree after joining, shop interactions, daily price
 updates, reconnecting, and saving/reloading. No card loss or duplication is observed.

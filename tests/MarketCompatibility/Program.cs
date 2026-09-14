@@ -4,7 +4,8 @@ using CardShopCoop.Net.Messages;
 int passed = 0;
 void Check(bool result, string description)
 {
-    if (!result) throw new Exception(description);
+    if (!result)
+        throw new Exception(description);
     Console.WriteLine("PASS " + description);
     passed++;
 }
@@ -49,7 +50,10 @@ CardMarketTable.Capture(snapshot, new List<MarketPrice> { null });
 Check(snapshot.Count == 1 && snapshot[0].Percent == 0 && snapshot[0].GeneratedMarketPrice == 0, "null host rows serialize as zero values");
 Console.WriteLine($"{passed} regression checks passed.");
 
-public enum ECardExpansionType { None = -1, Tetramon, Destiny, Ghost, Megabot, FantasyRPG, CatJob, FoodieGO, Ascension, MAX }
+public enum ECardExpansionType
+{
+    None = -1, Tetramon, Destiny, Ghost, Megabot, FantasyRPG, CatJob, FoodieGO, Ascension, MAX
+}
 public class MarketPrice
 {
     public float generatedMarketPrice, pricePercentChangeList;

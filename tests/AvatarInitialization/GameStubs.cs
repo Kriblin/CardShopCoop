@@ -93,4 +93,6 @@ namespace CC
     }
 }
 
-public class SharedMaterials { }
+public class SharedMaterials
+{
+}

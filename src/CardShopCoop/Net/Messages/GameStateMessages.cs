@@ -96,9 +96,6 @@ namespace CardShopCoop.Net.Messages
         public short Percent; // already x100, clamped to [short.MinValue, short.MaxValue]
     }
 
-    /// <summary>One per-expansion card market row: short percent (x100) + full float base.</summary>
-
-
     /// <summary>One modded-expansion card market change. The host hooks the
     /// game's AddCardPricePercentChange / SetCardGeneratedMarketPrice (which EPL prefixes,
     /// not replaces) and the client replays the same calls, so EPL's own prefix stores it
