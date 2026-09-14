@@ -67,6 +67,21 @@ var fallbackPreset = Custom(true);
 fallbackPreset.Presets.Presets[0].CharacterName = "Female7";
 CharacterTemplate.InitializeFresh(fallbackPreset, true);
 Check(fallbackPreset.StoredCharacterData.CharacterName == "Female7", "missing default uses same-gender preset");
+foreach (bool female in new[] { false, true })
+{
+    var customer = Custom(female);
+    string name = female ? "Female12" : "Male12";
+    var tournamentPreset = Preset(name);
+    customer.Presets.Presets.Add(tournamentPreset);
+    CharacterTemplate.InitializeFresh(customer, female, name);
+    Check(customer.StoredCharacterData.CharacterName == name,
+        "customer mirror preserves host tournament preset " + name);
+    CharacterTemplate.ApplyDefault(customer, female ? "Female0" : "Male0");
+    Check(customer.StoredCharacterData.CharacterName != name && customer.Applies == 2,
+        "customer mirror can redress after a host appearance change");
+    Check(tournamentPreset.HairNames.Count == 3 && tournamentPreset.HairColor == null,
+        "tournament preset asset remains unchanged");
+}
 Throws(() => CharacterTemplate.InitializeFresh(Custom(false), true), "wrong-gender presets are not used");
 Throws(() => CharacterTemplate.InitializeFresh(new CC.CharacterCustomization(), false), "missing presets fail explicitly");
 var throwing = Custom(false);

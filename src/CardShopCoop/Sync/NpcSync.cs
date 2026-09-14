@@ -1132,8 +1132,8 @@ namespace CardShopCoop.Sync
         }
 
         /// <summary>On a wardrobe change, re-dress the existing clone in place via the
-        /// game's own Initialize() (m_HasInit routes to LoadFromJSON, which re-applies
-        /// hair/apparel for the new name). Full respawn only when there is no clone yet
+        /// a detached, normalized preset for customers; workers retain their own initialization.
+        /// Full respawn only when there is no clone yet
         /// or the male/female prefab no longer matches.</summary>
         private void ReDress(Puppet p, string charName, Vector3 pos, bool femaleHint, byte kind, ushort index)
         {
@@ -1154,7 +1154,10 @@ namespace CardShopCoop.Sync
             try
             {
                 p.Custom.CharacterName = charName;
-                p.Custom.Initialize();
+                if (kind == KindCustomer)
+                    CharacterTemplate.ApplyDefault(p.Custom, charName);
+                else
+                    p.Custom.Initialize();
             }
             catch (System.Exception e)
             {
@@ -1461,9 +1464,14 @@ namespace CardShopCoop.Sync
             var holder = new GameObject("CoopNpcHolder_tmp");
             holder.SetActive(false);
             var clone = Object.Instantiate(prefabObject, holder.transform);
+            // A customer mirror must build its private runtime slots before Start can
+            // observe the copied public initialization flag or load an unnormalized preset.
+            if (kind == KindCustomer)
+                clone.SetActive(false);
             clone.transform.SetParent(null, worldPositionStays: false);
             clone.transform.position = pos;
-            clone.SetActive(true);
+            if (kind != KindCustomer)
+                clone.SetActive(true);
             Object.Destroy(holder);
 
             var cust = clone.GetComponent<Customer>();
@@ -1498,13 +1506,18 @@ namespace CardShopCoop.Sync
                 if (p.Custom != null && charName.Length > 0 && !clonedLiveWorker)
                 {
                     p.Custom.CharacterName = charName;
-                    p.Custom.Initialize(); // deterministic wardrobe by name
+                    if (kind == KindCustomer)
+                        CharacterTemplate.InitializeFresh(p.Custom, female, charName);
+                    else
+                        p.Custom.Initialize(); // workers retain their existing setup
                 }
             }
             catch (System.Exception e)
             {
                 CoopPlugin.Log.LogWarning($"NPC dressing '{charName}': {e.Message}");
             }
+            if (kind == KindCustomer)
+                clone.SetActive(true);
 
             // capture prop children BEFORE stripping the Customer script
             if (cust != null)

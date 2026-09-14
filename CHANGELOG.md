@@ -11,6 +11,8 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 - Fixed: the new Ascension expansion was missing from full market updates, so guest
   prices could remain at zero or disagree with the host after joining or reconnecting.
   Ascension now receives the host's base prices and market changes like the other expansions.
+- Customer mirrors now prepare their appearance safely before activation and apply the
+  host's selected preset, including returning tournament customers.
 - Game 1.0 compatibility work is in progress; two-player validation is still pending.
 
 **Both players must update.**

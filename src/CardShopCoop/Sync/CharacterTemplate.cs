@@ -12,7 +12,7 @@ namespace CardShopCoop.Sync
         private static readonly FieldInfo HairObjects = typeof(CC.CharacterCustomization).GetField("HairObjects", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo ApparelObjects = typeof(CC.CharacterCustomization).GetField("ApparelObjects", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        internal static void InitializeFresh(CC.CharacterCustomization custom, bool female)
+        internal static void InitializeFresh(CC.CharacterCustomization custom, bool female, string characterName = null)
         {
             if (HairObjects == null || ApparelObjects == null)
                 throw new MissingFieldException("Character customization runtime slots are unavailable");
@@ -33,7 +33,7 @@ namespace CardShopCoop.Sync
             {
                 custom.UI = ui;
             }
-            ApplyDefault(custom, (female ? "Female" : "Male") + "0");
+            ApplyDefault(custom, string.IsNullOrEmpty(characterName) ? (female ? "Female" : "Male") + "0" : characterName);
         }
 
         internal static void ApplyDefault(CC.CharacterCustomization custom, string name)
