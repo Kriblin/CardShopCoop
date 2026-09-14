@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/CardShopCoop/Sync/CardMarketTable.cs" Link="CardMarketTable.cs" />
+    <Compile Include="../../src/CardShopCoop/Net/Messages/MarketCardEntry.cs" Link="MarketCardEntry.cs" />
+  </ItemGroup>
+</Project>
