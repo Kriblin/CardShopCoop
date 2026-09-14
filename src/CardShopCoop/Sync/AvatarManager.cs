@@ -203,14 +203,28 @@ namespace CardShopCoop.Sync
             ApplyLocalModel(custom, model);
         }
 
-        public void ApplyLocalModel(CC.CharacterCustomization custom, PlayerModelEntry model)
+        public bool ApplyLocalModel(CC.CharacterCustomization custom, PlayerModelEntry model)
         {
             if (custom == null || model == null)
-                return;
+                return false;
             try
             {
                 custom.CharacterName = (model.Female ? "Female" : "Male") + Mathf.Max(0, model.ModelIndex);
                 InitializeModelDefault(custom);
+            }
+            catch (System.Exception e)
+            {
+                // A broken game template does not make the user's saved appearance invalid.
+                CoopPlugin.Log.LogWarning("Character default unavailable; keeping saved appearance: " + e.Message);
+                if (custom == _editorCustomization)
+                {
+                    _editorCustomization = null;
+                    _editorTemplates.RejectCurrent();
+                }
+                return false;
+            }
+            try
+            {
                 if (!string.IsNullOrEmpty(model.CustomizationJson))
                 {
                     var data = JsonConvert.DeserializeObject<CC.CC_CharacterData>(model.CustomizationJson);
@@ -238,7 +252,7 @@ namespace CardShopCoop.Sync
             catch (System.Exception e)
             {
                 // Appearance data is user/session state, never a reason to fail a join or
-                // abort the world snapshot. Initialize has already selected the safe default.
+                // abort the world snapshot. The default was prepared before reading the payload.
                 model.CustomizationJson = null;
                 CoopPlugin.Log.LogWarning("Local character model was reset after invalid appearance data: " + e.Message);
                 try
@@ -250,6 +264,7 @@ namespace CardShopCoop.Sync
                     CoopPlugin.Log.LogWarning("Default character model could not be initialized: " + resetError.Message);
                 }
             }
+            return true;
         }
 
         private void InitializeModelDefault(CC.CharacterCustomization custom)
@@ -1636,15 +1651,25 @@ namespace CardShopCoop.Sync
                                 ClotheNudeSlots(cust.m_CharacterCustom, data);
                             CharacterTemplate.NormalizeCharacterData(cust.m_CharacterCustom, data);
                             cust.m_CharacterCustom.StoredCharacterData = data;
-                            if (TryApplyCharacterData(cust.m_CharacterCustom, data, "remote avatar"))
-                                ClearEmptyWardrobeSlots(cust.m_CharacterCustom, data);
+                            if (!TryApplyCharacterData(cust.m_CharacterCustom, data, "remote avatar"))
+                                throw new System.InvalidOperationException("Remote appearance could not be applied");
+                            ClearEmptyWardrobeSlots(cust.m_CharacterCustom, data);
                         }
                     }
                 }
             }
             catch (System.Exception e)
             {
-                CoopPlugin.Log.LogWarning("Avatar dressing failed (spawning undressed): " + e.Message);
+                CoopPlugin.Log.LogWarning("Avatar dressing failed; using a basic player marker: " + e.Message);
+                clone.SetActive(false);
+                Object.Destroy(clone);
+                clone = new GameObject("CoopAvatarFallback");
+                clone.transform.position = av.TargetPos;
+                var marker = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                marker.transform.SetParent(clone.transform, false);
+                marker.transform.localPosition = new Vector3(0f, 0.9f, 0f);
+                marker.transform.localScale = new Vector3(0.5f, 0.9f, 0.5f);
+                cust = null;
             }
 
             // Customer prefabs include held-item and FX props; avatars are visual-only.

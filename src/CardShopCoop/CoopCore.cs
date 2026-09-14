@@ -1454,10 +1454,13 @@ namespace CardShopCoop
                 TryUpgradeAutoModel();
 
             var editor = _avatars.GetEditorCustomization(_localPlayerModel.Female);
-            if (editor != null && _localModelAppliedRoot != editor.transform)
+            if (editor == null)
+                return;
+            if (_localModelAppliedRoot != editor.transform)
             {
                 string customizationBeforeApply = _localPlayerModel.CustomizationJson;
-                _avatars.ApplyLocalModel(editor, _localPlayerModel);
+                if (!_avatars.ApplyLocalModel(editor, _localPlayerModel))
+                    return;
                 _localModelAppliedRoot = editor.transform;
                 if (customizationBeforeApply != _localPlayerModel.CustomizationJson)
                 {
@@ -5240,7 +5243,10 @@ namespace CardShopCoop
             // exactly what this build did before translation existed).
             byte[] gzHostEnum = GzipLines(SafeEnumLines());
             byte[] gzHostCards = GzipLines(SafeCardsList());
-            PlayerModelStateMessage modelState = Role == CoopRole.Host ? BuildPlayerModelState() : null;
+            PlayerModelStateMessage modelState = Role == CoopRole.Host
+                ? OptionalAppearanceState.Build(BuildPlayerModelState, e =>
+                    CoopPlugin.Log.LogWarning("World transfer continuing without appearance state: " + e))
+                : null;
 
             var net = _net;
             new Thread(() =>

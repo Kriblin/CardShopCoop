@@ -61,5 +61,12 @@ namespace CardShopCoop.Sync
             Release();
             Array.Clear(_failed, 0, _failed.Length);
         }
+
+        internal void RejectCurrent()
+        {
+            if (_source != null)
+                _failed[_female ? 1 : 0] = _source;
+            Release();
+        }
     }
 }
