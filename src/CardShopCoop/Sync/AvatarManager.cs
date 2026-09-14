@@ -106,9 +106,20 @@ namespace CardShopCoop.Sync
 
         private readonly Dictionary<int, RemoteAvatar> _avatars = new Dictionary<int, RemoteAvatar>();
         private bool _loggedAnimParams;
-        private GameObject _editorHolder;
+        private sealed class EditorTemplate
+        {
+            public GameObject Holder;
+            public CC.CharacterCustomization Customization;
+            public string BeforeInitialization;
+        }
+
+        private readonly AvatarTemplateCache<Customer, EditorTemplate> _editorTemplates =
+            new AvatarTemplateCache<Customer, EditorTemplate>(template =>
+            {
+                if (template.Holder != null)
+                    Object.DestroyImmediate(template.Holder);
+            });
         private CC.CharacterCustomization _editorCustomization;
-        private bool _editorFemale;
         private GameObject _previewBody;
         private CC.CharacterCustomization _previewCustomization;
         private string _previewSignature;
@@ -539,11 +550,6 @@ namespace CardShopCoop.Sync
 
         public CC.CharacterCustomization GetEditorCustomization(bool female)
         {
-            if (_editorCustomization != null && _editorFemale == female)
-                return _editorCustomization;
-            if (_editorHolder != null)
-                Object.DestroyImmediate(_editorHolder);
-            _editorCustomization = null;
             if (_customers == null)
                 _customers = Object.FindObjectOfType<CustomerManager>();
             if (_customers == null)
@@ -551,29 +557,27 @@ namespace CardShopCoop.Sync
             var prefab = female ? _customers.m_CustomerFemalePrefab : _customers.m_CustomerPrefab;
             if (prefab == null)
                 return null;
-            var holder = new GameObject("CoopCharacterEditorTemplate");
-            holder.SetActive(false);
-            CC.CharacterCustomization custom = null;
-            try
-            {
-                var clone = Object.Instantiate(prefab.gameObject, holder.transform);
-                var customer = clone.GetComponent<Customer>();
-                custom = customer != null ? customer.m_CharacterCustom
-                    : clone.GetComponentInChildren<CC.CharacterCustomization>(true);
-                if (custom == null)
-                    throw new System.InvalidOperationException("Customer prefab has no customization");
-                CharacterTemplate.InitializeFresh(custom, female);
-                _editorHolder = holder;
-                _editorCustomization = custom;
-                _editorFemale = female;
-                return custom;
-            }
-            catch (System.Exception e)
-            {
-                CoopPlugin.Log.LogWarning($"Character editor initialization failed: female={female}, {CharacterTemplate.Describe(custom)}; {e}");
-                Object.DestroyImmediate(holder);
-                throw;
-            }
+            _editorCustomization = null;
+            var template = _editorTemplates.Get(prefab, female,
+                candidate => candidate.Holder != null && candidate.Customization != null,
+                candidate =>
+                {
+                    candidate.Holder = new GameObject("CoopCharacterEditorTemplate");
+                    candidate.Holder.SetActive(false);
+                    var clone = Object.Instantiate(prefab.gameObject, candidate.Holder.transform);
+                    var customer = clone.GetComponent<Customer>();
+                    candidate.Customization = customer != null ? customer.m_CharacterCustom
+                        : clone.GetComponentInChildren<CC.CharacterCustomization>(true);
+                    if (candidate.Customization == null)
+                        throw new System.InvalidOperationException("Customer prefab has no customization");
+                    candidate.BeforeInitialization = CharacterTemplate.Describe(candidate.Customization);
+                    CharacterTemplate.InitializeFresh(candidate.Customization, female);
+                },
+                (candidate, error) => CoopPlugin.Log.LogWarning(
+                    $"Character editor unavailable until prefab change or session reset: female={female}; "
+                    + $"before=[{candidate.BeforeInitialization}], after=[{CharacterTemplate.Describe(candidate.Customization)}]; {error}"));
+            _editorCustomization = template?.Customization;
+            return _editorCustomization;
         }
 
         public List<CC.CC_Property> GetBlendshapes(Transform root, bool female)
@@ -887,10 +891,8 @@ namespace CardShopCoop.Sync
             foreach (var av in _avatars.Values)
                 DespawnBody(av);
             _avatars.Clear();
-            if (_editorHolder != null)
-                Object.Destroy(_editorHolder);
-            _editorHolder = null;
             _editorCustomization = null;
+            _editorTemplates.Clear();
             DestroyPreview();
         }
 
