@@ -96,8 +96,8 @@ contract changed. **Both players must update.**
 Harness instructions: [metadata audit](tests/GameCompatibility/README.md),
 [market tests](tests/MarketCompatibility/README.md), and
 [avatar tests](tests/AvatarInitialization/README.md).
-Two-player runtime checks remain pending; M2 is not fully signed off. Playable TCG,
-deck editing, player tournament participation, and their rewards remain M3 work.
+Two-player runtime checks remain pending; M2 is not fully signed off. These M2
+results predate the playable TCG implementation recorded in M3 below.
 
 **Exit criteria:** Host and guest agree after joining, shop interactions, daily price
 updates, reconnecting, and saving/reloading. No card loss or duplication is observed.
@@ -161,22 +161,45 @@ interactions are clearly identified and safely gated.
 - [ ] Run two-player regression tests on fresh 1.0 saves and migrated 0.70.3 saves.
 - [ ] Test the supported baseline mod set, then supported optional mod combinations.
 - [ ] Resolve all P0/P1 defects within the declared support scope.
-- [ ] Document remaining limitations and the exact tested game version.
-- [ ] Run `dotnet restore src/CardShopCoop/CardShopCoop.csproj`.
-- [ ] Run `dotnet format src/CardShopCoop/CardShopCoop.csproj whitespace --verify-no-changes --no-restore`;
+- [x] Document remaining limitations and validation targets in `README.md`: previously
+  documented gameplay version **0.70.3**, automated target **1.0 / Steam build 25304508**.
+  Game 1.0 two-player sign-off and optional mod combinations are explicitly pending.
+- [x] Run `dotnet restore src/CardShopCoop/CardShopCoop.csproj`.
+- [x] Run `dotnet format src/CardShopCoop/CardShopCoop.csproj whitespace --verify-no-changes --no-restore`;
   fix formatting and repeat verification if necessary.
-- [ ] Build with `dotnet build src/CardShopCoop/CardShopCoop.csproj -c Release`.
+- [x] Build with `dotnet build src/CardShopCoop/CardShopCoop.csproj -c Release`.
   Use `-p:Deploy=true` only when local deployment is intended and the game is closed.
-- [ ] Choose the release version according to the repository rules: patch for fixes
+- [x] Choose the release version according to the repository rules: patch for fixes
   without wire-contract changes; minor for new messages or substantial changes to
   message layout, encoding, semantics, or routing; major for a deliberate breaking
   protocol transition.
-- [ ] Bump the version only in `Directory.Build.props`.
-- [ ] Add player-facing release notes to `CHANGELOG.md`. If the wire version or
+- [x] Bump the version only in `Directory.Build.props`. M3 already selected **1.3.1**
+  for the changed tournament/table/report contract; tooling/docs require no further bump.
+- [x] Add player-facing release notes to `CHANGELOG.md`. The **1.3.1** section exists. If the wire version or
   required mod set changes, end the release section with **Both players must update.**
 - [ ] Verify that both players use the identical plugin version.
-- [ ] Keep local release ZIPs in `dist/release/` and reuse the changelog section for
-  release descriptions.
+- [x] Keep local candidate ZIPs in `dist/release/`; package the exact current changelog
+  section for reuse in release descriptions. Candidate packaging is verified; no release
+  was deployed or published.
+
+**Local validation tooling:** `python tools/validate_compatibility.py` runs the complete
+local check sequence and stops at the first failure. Add `--package` to produce an
+explicitly unverified candidate ZIP after successful checks. It never deploys or publishes.
+See [contributor instructions](CONTRIBUTING.md#checks-before-a-pull-request).
+
+**Verified on 2026-09-14:** Restore, required formatting check, Release build, 108 helper
+checks, and the game metadata audit (358 member lookups, 202 hooks, 92 integration
+contracts) pass. Four validation-tool regressions also pass, covering early failure,
+changed binaries, archive contents, and exact changelog extraction. The local run
+records SDK **10.0.111**, Steam build **25304508**, game/plugin hashes, source commit
+and checkout status, and an on-disk plugin binary inventory in ignored
+`diag/compatibility/`. This inventory does not establish loaded mods, content-pack
+parity, or the state of another PC.
+
+**Remaining blocker:** All unchecked gameplay items in M1–M4 require an actual host/guest
+session, fresh and migrated saves, and the intended mod matrix. Those gameplay runs
+have not been performed here. No live result has been inferred from the helper
+tests, metadata audit, or candidate build. **Release sign-off remains pending.**
 
 **Exit criteria:** Build and formatting checks pass, two-player validation passes,
 and the release declares its tested compatibility and limitations.
