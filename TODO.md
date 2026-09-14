@@ -1,6 +1,6 @@
 # Game 1.0 compatibility checklist
 
-CardShopCoop version: **1.3.0**. Previously documented tested game version:
+CardShopCoop version: **1.3.1**. Previously documented tested game version:
 **0.70.3**. Target: **TCG Card Shop Simulator 1.0**.
 
 This checklist records a source-based assessment. Two-player runtime verification
@@ -104,16 +104,54 @@ updates, reconnecting, and saving/reloading. No card loss or duplication is obse
 
 ## M3 — Define and implement new 1.0 feature support
 
-These are unverified compatibility risks, not confirmed runtime failures.
+Implementation uses host-controlled TCG play. Independent guest battles, deck editing,
+and tournament participation are unsupported and show an explanation before entry.
+Guests can keep running the shop and reading the rulebook.
 
-- [ ] Trace the game's playable TCG, deck editing, reward, and tournament flows.
-- [ ] Define host authority and guest permissions for each supported action.
-- [ ] Synchronize customer battles and relevant play-table state where supported.
-- [ ] Verify deck persistence and card ownership during deck editing.
-- [ ] Synchronize rewards and player tournament participation where supported.
-- [ ] Clearly gate interactions that remain unsupported.
+- [x] Trace the game's playable TCG, deck editing, reward, and tournament flows.
+  Inspected `PlayTableGame`, `InteractablePlayTable`, deck/workbench screens,
+  `CustomerManager`, and native save/load; metadata checks validate the installed targets.
+- [x] Define host authority and guest permissions for each supported action.
+  Guest entry and mutation callbacks are guarded; hosting cannot begin halfway through
+  local deck editing or a battle. Joining already requires the Title screen.
+- [x] Implement synchronization of relevant play-table state within the supported scope.
+  Shared table props and customer visuals retain their existing channels; player battle
+  occupancy is now mirrored. Host-side kick/move/box requests reject active battle tables.
+  The live playable card board and independent guest turns remain unsupported.
+  - [ ] Verify table visuals and protection through entrance, battle, exit, and recovery.
+- [ ] Verify deck persistence and card ownership during deck editing in-game.
+  - [x] Capture/apply decks, selected deck, cosmetic IDs, and compact card identity data.
+    Copies are detached; repeated snapshots never call inventory mutations.
+  - [x] Verify native save/load contains these fields and native deck changes use the
+    existing shared card-add/remove channel. Regression checks cover snapshot recovery.
+  - [ ] Exercise create/edit/delete/paste/import, save/reload, and simultaneous guest
+    inventory actions; confirm total card counts and identities remain correct.
+- [x] Implement host-authoritative rewards and player tournament state within scope.
+  Tournament snapshots include participation, player data and the null-customer player
+  bracket entry. Daily duel counts are shared; prize shelves retain existing sync.
+  Battle gifts remain in the host's hand and use normal item/card channels when placed
+  or opened. Duplicate result/exit/gift callbacks are guarded, including rematches.
+  - [ ] Verify actual gifts, placement/opening, tournament outcomes and prize contents.
+- [x] Clearly gate unsupported interactions, with guest-facing explanations.
 - [ ] Test simultaneous interactions, joining during play, and disconnects during play.
-- [ ] Verify that rewards cannot duplicate and that cards cannot disappear.
+- [ ] Verify end-to-end that rewards cannot duplicate and cards cannot disappear.
+  - [x] Pass helper regressions for duplicate callbacks and idempotent state replacement.
+  - [ ] Verify Unity/Harmony execution, partial reward failures, scene reset, and two-player
+    inventory conservation using the runtime matrix linked below.
+
+**Implementation validation:** Restore, Release build without deployment, and required
+whitespace verification pass (0 errors, 90 obsolete-API warnings). The new TCG harness
+passes 37 checks; existing avatar, market, and shelf-box harnesses pass 71 checks.
+The metadata audit passes 358 literal member lookups, 202 hooks, and 92 game integration
+contracts. These are automated helper/metadata results, not two-player runtime results.
+
+Plugin **1.3.1**, wire **103**, reflects the changed tournament/table/report contract.
+Local metadata target: Steam build **25304508**, assembly MVID
+`337b87e1-9427-48d9-aa0a-905bf505d6c0`. Host/guest runtime build IDs and mod sets remain
+unrecorded. **Both players must update.** No deployment or publishing was performed.
+
+See [TCG harness and pending runtime matrix](tests/TcgCompatibility/README.md) and
+[game metadata audit](tests/GameCompatibility/README.md). **M3 runtime sign-off remains pending.**
 
 **Exit criteria:** Supported features produce matching persistent outcomes; unsupported
 interactions are clearly identified and safely gated.

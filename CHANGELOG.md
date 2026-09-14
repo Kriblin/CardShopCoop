@@ -5,6 +5,21 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 
 ---
 
+## 1.3.1
+**Game 1.0 deck and tournament progress now follows the host.**
+
+- Deck editing, customer battles, and tournament participation are host-only. Guests
+  can keep running the shop and reading the rulebook; unsupported TCG actions show a message.
+- Decks, selected deck, player tournament results, and daily duel counts follow the
+  host. The pairing board includes the host's tournament entry.
+- Guests cannot move, box up, or kick customers from a table during the host's battle.
+  Repeated battle completion callbacks no longer grant another set of gifts.
+- Battle gifts belong to the host's hand and use ordinary shared item/card updates
+  when placed or opened. Independent guest battles and the live battle board are not supported.
+- Game 1.0 two-player validation is still pending; this is not a completed runtime sign-off.
+
+**Both players must update.**
+
 ## 1.3.0
 **Ascension card prices now follow the host during co-op.**
 
