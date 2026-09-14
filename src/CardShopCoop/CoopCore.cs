@@ -924,6 +924,11 @@ namespace CardShopCoop
         public void StartHostingSteam(bool isPublic, string lobbyName, string password)
         {
             ErrorLine = "";
+            if (!Sync.TcgAuthority.CanStartHosting())
+            {
+                ErrorLine = "Finish the battle and close deck editing before hosting.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";
@@ -1805,6 +1810,7 @@ namespace CardShopCoop
                 new Sync.CoopModuleEntry(null, "cardboxes", patches: Sync.CardBoxOps.ApplyPatches),
                 new Sync.CoopModuleEntry(null, "furnboxes", patches: Sync.FurnitureBoxOps.ApplyPatches),
                 new Sync.CoopModuleEntry(null, "hand-protection", patches: Sync.HandProtection.ApplyPatches),
+                new Sync.CoopModuleEntry(null, "tcg-authority", patches: Sync.TcgAuthority.ApplyPatches),
             };
         }
 
@@ -2581,6 +2587,11 @@ namespace CardShopCoop
         public void StartHosting()
         {
             ErrorLine = "";
+            if (!Sync.TcgAuthority.CanStartHosting())
+            {
+                ErrorLine = "Finish the battle and close deck editing before hosting.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";

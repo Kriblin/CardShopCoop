@@ -328,7 +328,7 @@ namespace CardShopCoop.Sync
                 ObjType = msg.WireType,
                 NameHash = msg.NameHash,
             });
-            if (obj == null || obj.GetIsBoxedUp() || obj.GetIsMovingObject()
+            if (obj == null || TcgAuthority.PlayerAtTable(obj) || obj.GetIsBoxedUp() || obj.GetIsMovingObject()
                 || !obj.m_CanBoxUpObject || !obj.m_CanPickupMoveObject)
                 return;
             var box = obj.GetPackagingBoxShelf();
@@ -395,7 +395,7 @@ namespace CardShopCoop.Sync
         /// boxed). The box engine then mirrors the new delivery box.</summary>
         public static void BoxUpPlacedObject(InteractableObject obj)
         {
-            if (obj == null || obj.GetIsBoxedUp() || obj.GetIsMovingObject())
+            if (obj == null || TcgAuthority.PlayerAtTable(obj) || obj.GetIsBoxedUp() || obj.GetIsMovingObject())
                 return;
             try
             {
