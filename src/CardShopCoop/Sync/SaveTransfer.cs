@@ -458,6 +458,7 @@ namespace CardShopCoop.Sync
         public static void ApplyAndLoadAsync(byte[] saveBytes, int sessionGen,
             Action completed, Action<Exception> failed)
         {
+            ValidateWorldLoad();
             if (saveBytes == null || saveBytes.Length == 0)
                 throw new ArgumentException("Received save payload is empty", nameof(saveBytes));
 
@@ -526,6 +527,7 @@ namespace CardShopCoop.Sync
 
         private static void InjectAndForceLoad(byte[] saveBytes)
         {
+            ValidateWorldLoad();
             var gm = CGameManager.m_Instance;
             if (gm == null)
                 throw new InvalidOperationException("The game manager is not ready for save transfer.");
@@ -579,6 +581,7 @@ namespace CardShopCoop.Sync
         /// Approach contributed by Jburne10.</summary>
         public static void ApplyAndLoad(byte[] saveBytes)
         {
+            ValidateWorldLoad();
             var gm = CGameManager.m_Instance;
             if (gm == null)
                 throw new InvalidOperationException("The game manager is not ready for save transfer.");
@@ -664,20 +667,28 @@ namespace CardShopCoop.Sync
             }
         }
 
+        public const string WorldSceneName = CGameManager.k_StartSceneName;
+
+        // Check before any scratch-file, injected-save or manager-state changes.
+        // A missing scene otherwise fails inside a coroutine, after its caller returned.
+        public static void ValidateWorldLoad()
+        {
+            WorldSceneLoader.Validate();
+        }
+
         /// <summary>Drive the game's own title->shop load path for an arbitrary slot.</summary>
         public static void ForceLoadSlot(int slot)
         {
+            ValidateWorldLoad();
             var gm = CGameManager.m_Instance;
             if (gm == null)
                 throw new InvalidOperationException("The game manager is not ready for save transfer.");
             gm.m_CurrentSaveLoadSlotSelectedIndex = slot;
 
             // The load-on-scene-enter path only runs while m_InitLoaded is false.
-            var initLoaded = typeof(CGameManager).GetField("m_InitLoaded",
-                BindingFlags.NonPublic | BindingFlags.Static);
-            initLoaded?.SetValue(null, false);
+            WorldSceneLoader.ResetInitialization();
 
-            gm.LoadMainLevelAsync("Start", slot);
+            WorldSceneLoader.Start(gm, slot);
         }
     }
 }

@@ -400,6 +400,7 @@ namespace CardShopCoop
         /// the game's own load-cleanup destroys objects and NOTHING destroyed in
         /// that window is a player action to forward.</summary>
         public static bool ClientReloading;
+        private readonly WorldLoadMonitor _worldLoadMonitor = new WorldLoadMonitor();
         private float _reloadStartedAt;
         private int _reloadStartedFrame;
         private bool _clientWorldArrived;
@@ -866,6 +867,11 @@ namespace CardShopCoop
         public void JoinSteam(ulong lobby, string password = "")
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";
@@ -924,6 +930,11 @@ namespace CardShopCoop
         public void StartHostingSteam(bool isPublic, string lobbyName, string password)
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
             if (!Sync.TcgAuthority.CanStartHosting())
             {
                 ErrorLine = "Finish the battle and close deck editing before hosting.";
@@ -1094,7 +1105,7 @@ namespace CardShopCoop
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (ClientReloading && scene.name != "Title")
+            if (ClientReloading && scene.name == SaveTransfer.WorldSceneName)
             {
                 _clientWorldArrived = true;
                 _reloadStartedAt = Time.realtimeSinceStartup;
@@ -1146,7 +1157,7 @@ namespace CardShopCoop
             // A game-level scene loading (not "Title") while a session is live and it was
             // NOT the mod's own join reload means someone loaded a DIFFERENT world out from
             // under the session: the guest hit pause -> Load Game -> its own save
-            // (SaveLoadGameSlotSelectScreen loads "Start" mid-session), or the host loaded
+            // (SaveLoadGameSlotSelectScreen loads the shop scene mid-session), or the host loaded
             // another slot. The socket would otherwise stay open with the peer standing in a
             // world we no longer share, and the other side is never told. Shut the session
             // down cleanly, same path as the Title back-out above.
@@ -1155,7 +1166,7 @@ namespace CardShopCoop
             //     HOST's own INITIAL world load, which happens from TitleScreen BEFORE
             //     StartHosting sets Role=Host - Role is still None there, so this can't fire).
             //   - !ClientReloading: the guest's mod-driven join reload (BundleDone sets this,
-            //     and it also loads "Start") is the mod's OWN transition - never a leave.
+            //     and it also loads the shop scene) is the mod's OWN transition - never a leave.
             else if (scene.name != "Title" && Role != CoopRole.None && _net != null && !ClientReloading)
             {
                 Shutdown("left the session (world reloaded)");
@@ -1622,6 +1633,19 @@ namespace CardShopCoop
             };
         }
 
+        private void CheckWorldLoad()
+        {
+            string error = _worldLoadMonitor.Poll(Time.realtimeSinceStartup,
+                GameInstance.m_HasLoadingError, false);
+            if (error == null)
+                return;
+            ErrorLine = error + " Returning to the title screen. If loading remains stuck, restart the game before retrying.";
+            CoopPlugin.Log.LogError(ErrorLine);
+            _autoPhase = 99;
+            WorldSceneLoader.AbortWorldLoad();
+            Shutdown("world load failed");
+        }
+
         /// <summary>
         /// Ends the guest's load hold from the game's actual completion signal rather than
         /// from a guessed number of seconds.  FindObjectOfType is deliberate here: asking
@@ -1630,7 +1654,7 @@ namespace CardShopCoop
         /// </summary>
         private bool TryFinishClientReload()
         {
-            if (!InGameLevel())
+            if (!InGameLevel() || !GameInstance.m_FinishedSavefileLoading || GameInstance.m_HasLoadingError)
                 return false;
             if (!_clientWorldArrived)
                 return false;
@@ -1643,6 +1667,7 @@ namespace CardShopCoop
 
             float elapsed = Time.realtimeSinceStartup - _reloadStartedAt;
             ClientReloading = false;
+            _worldLoadMonitor.Reset();
             _clientWorldArrived = false;
             CoopPlugin.Log.LogInfo($"Join world load completed in {elapsed:F2}s; resuming co-op sync");
 
@@ -1911,7 +1936,8 @@ namespace CardShopCoop
             _dispatchRetryNextFrame.Clear();
             _dispatchHeldTransfers.Clear();
             IsSteamSession = false;
-            GuestBorrowedWorld = false;
+            if (!WorldSceneLoader.LoadPending && !WorldSceneLoader.RecoveryFailed)
+                GuestBorrowedWorld = false;
             HostPassword = "";
             _joinPassword = "";
         }
@@ -2589,6 +2615,11 @@ namespace CardShopCoop
         public void StartHosting()
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
             if (!Sync.TcgAuthority.CanStartHosting())
             {
                 ErrorLine = "Finish the battle and close deck editing before hosting.";
@@ -2823,6 +2854,11 @@ namespace CardShopCoop
         public void Join(string ip, int joinPort, string password)
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";
@@ -3472,6 +3508,9 @@ namespace CardShopCoop
 
         private void Shutdown(string reason)
         {
+            if (ClientReloading)
+                WorldSceneLoader.AbortWorldLoad();
+            _worldLoadMonitor.Reset();
             if (_localPlayerModel != null)
                 Util.PlayerModelStore.Save(_localPlayerModel);
             _localModelSavePending = false;
@@ -3632,7 +3671,7 @@ namespace CardShopCoop
             // guest standing in the borrowed world, so the guard MUST persist (a day-end
             // autosave or quit-save would otherwise write the host's shop to the guest's slot).
             // The title screen clears it on the clean way out.
-            if (!InGameLevel())
+            if (!InGameLevel() && !WorldSceneLoader.LoadPending && !WorldSceneLoader.RecoveryFailed)
                 GuestBorrowedWorld = false;
             if (reason != null)
             {
@@ -3719,7 +3758,12 @@ namespace CardShopCoop
             // session AND out of any game level. Post-disconnect the guest is Role.None but
             // still standing in the host's world (InGameLevel true), so the guard persists
             // there and clears only after they actually return to the menu.
-            if (GuestBorrowedWorld && Role == CoopRole.None && !InGameLevel())
+            WorldSceneLoader.TickRecovery();
+            CheckWorldLoad();
+            if (WorldSceneLoader.RecoveryFailed)
+                ErrorLine = "World load recovery failed. Restart the game before retrying; guest saving remains blocked.";
+            if (GuestBorrowedWorld && Role == CoopRole.None && !InGameLevel()
+                && !WorldSceneLoader.LoadPending && !WorldSceneLoader.RecoveryFailed)
                 GuestBorrowedWorld = false;
 
             // guest soft-lock safety net: recover from a stranded hold-box mode
@@ -4199,12 +4243,24 @@ namespace CardShopCoop
                     && CGameManager.m_Instance != null)
                 {
                     CoopPlugin.Log.LogInfo($"AUTO: loading slot {_autoHostSlot}...");
-                    Sync.SaveTransfer.ForceLoadSlot(_autoHostSlot);
-                    _autoPhase = 1;
-                    _autoTimer = 0f;
+                    try
+                    {
+                        Sync.SaveTransfer.ForceLoadSlot(_autoHostSlot);
+                        _worldLoadMonitor.Begin(Time.realtimeSinceStartup);
+                        _autoPhase = 1;
+                        _autoTimer = 0f;
+                    }
+                    catch (Exception e)
+                    {
+                        WorldSceneLoader.AbortWorldLoad();
+                        ErrorLine = "Automatic world load failed: " + e.Message;
+                        CoopPlugin.Log.LogError(ErrorLine);
+                        _autoPhase = 99;
+                    }
                 }
                 else if (_autoPhase == 1 && InGameLevel() && GameInstance.m_FinishedSavefileLoading)
                 {
+                    _worldLoadMonitor.Reset();
                     _autoPhase = 2;
                     _autoTimer = 0f;
                 }
@@ -5097,6 +5153,16 @@ namespace CardShopCoop
                     {
                         if (Role != CoopRole.Client || _worldRequested || _pendingSave == null)
                             break;
+                        try
+                        {
+                            SaveTransfer.ValidateWorldLoad();
+                        }
+                        catch (Exception e)
+                        {
+                            ErrorLine = "Cannot load the received world: " + e.Message;
+                            Shutdown("world scene unavailable");
+                            break;
+                        }
                         var bundle = _bundleBuf != null ? _bundleBuf.ToArray() : new byte[0];
                         _bundleBuf = null;
                         _worldRequested = true;
@@ -5142,7 +5208,9 @@ namespace CardShopCoop
                                         + goStore + " - your own SOLO save slots are untouched, but graded cards in THIS co-op slot are now judged "
                                         + "against the host's burned serials and cert bindings, and any this PC issued itself can be flagged FAKE on the next load. "
                                         + "The previous file was kept once as .coopbak beside it.");
-                                SaveTransfer.ApplyAndLoadAsync(saveBytes, transferGen,
+                                try
+                                {
+                                    SaveTransfer.ApplyAndLoadAsync(saveBytes, transferGen,
                                     () => { },
                                     e =>
                                     {
@@ -5150,6 +5218,12 @@ namespace CardShopCoop
                                         CoopPlugin.Log.LogError("coop: world apply failed: " + e);
                                         Shutdown("world apply failed");
                                     });
+                                }
+                                catch (Exception e)
+                                {
+                                    ErrorLine = "Could not load the received world: " + e.Message;
+                                    Shutdown("world apply failed");
+                                }
                             },
                             e =>
                             {
@@ -5163,6 +5237,8 @@ namespace CardShopCoop
                         // while waiting for the invite) a 1.0.7 client forwarded all ~250
                         // as player trash actions, wiping the HOST's boxes (first field
                         // report). Suppress until vanilla reports that the world is settled.
+                        GameInstance.m_HasLoadingError = false;
+                        _worldLoadMonitor.Begin(Time.realtimeSinceStartup);
                         ClientReloading = true;
                         _clientWorldArrived = false;
                         _reloadStartedAt = Time.realtimeSinceStartup;
