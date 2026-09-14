@@ -199,7 +199,7 @@ namespace CardShopCoop.Sync
             try
             {
                 custom.CharacterName = (model.Female ? "Female" : "Male") + Mathf.Max(0, model.ModelIndex);
-                custom.Initialize();
+                InitializeModelDefault(custom);
                 if (!string.IsNullOrEmpty(model.CustomizationJson))
                 {
                     var data = JsonConvert.DeserializeObject<CC.CC_CharacterData>(model.CustomizationJson);
@@ -214,7 +214,7 @@ namespace CardShopCoop.Sync
                         }
                         else
                         {
-                            NormalizeCharacterData(custom, data);
+                            CharacterTemplate.NormalizeCharacterData(custom, data);
                             custom.StoredCharacterData = data;
                             if (!TryApplyCharacterData(custom, data, "local model"))
                                 model.CustomizationJson = null;
@@ -232,7 +232,7 @@ namespace CardShopCoop.Sync
                 CoopPlugin.Log.LogWarning("Local character model was reset after invalid appearance data: " + e.Message);
                 try
                 {
-                    custom.Initialize();
+                    InitializeModelDefault(custom);
                 }
                 catch (System.Exception resetError)
                 {
@@ -241,46 +241,15 @@ namespace CardShopCoop.Sync
             }
         }
 
-        private static void NormalizeCharacterData(CC.CharacterCustomization custom, CC.CC_CharacterData data)
+        private void InitializeModelDefault(CC.CharacterCustomization custom)
         {
-            if (data.Blendshapes == null)
-                data.Blendshapes = new List<CC.CC_Property>();
-            if (data.TextureProperties == null)
-                data.TextureProperties = new List<CC.CC_Property>();
-            if (data.FloatProperties == null)
-                data.FloatProperties = new List<CC.CC_Property>();
-            if (data.ColorProperties == null)
-                data.ColorProperties = new List<CC.CC_Property>();
-
-            int hairSlots = custom.HairTables != null ? custom.HairTables.Count : 0;
-            int apparelSlots = custom.ApparelTables != null ? custom.ApparelTables.Count : 0;
-            NormalizeList(data.HairNames, hairSlots, "", value => data.HairNames = value);
-            NormalizeList(data.HairColor, hairSlots, () => new CC.CC_Property(), value => data.HairColor = value);
-            NormalizeList(data.ApparelNames, apparelSlots, "", value => data.ApparelNames = value);
-            NormalizeList(data.ApparelMaterials, apparelSlots, 0, value => data.ApparelMaterials = value);
+            if (custom == _editorCustomization)
+                CharacterTemplate.ApplyDefault(custom, custom.CharacterName);
+            else
+                custom.Initialize();
         }
 
-        private static void NormalizeList<T>(List<T> source, int count, T fill, System.Action<List<T>> assign)
-        {
-            var list = source ?? new List<T>();
-            if (list.Count > count)
-                list.RemoveRange(count, list.Count - count);
-            while (list.Count < count)
-                list.Add(fill);
-            assign(list);
-        }
-
-        private static void NormalizeList<T>(List<T> source, int count, System.Func<T> fill, System.Action<List<T>> assign)
-        {
-            var list = source ?? new List<T>();
-            if (list.Count > count)
-                list.RemoveRange(count, list.Count - count);
-            while (list.Count < count)
-                list.Add(fill());
-            assign(list);
-        }
-
-        private static bool TryApplyCharacterData(CC.CharacterCustomization custom, CC.CC_CharacterData data, string context)
+        private bool TryApplyCharacterData(CC.CharacterCustomization custom, CC.CC_CharacterData data, string context)
         {
             var savedApparelTints = data.ColorProperties != null
                 ? data.ColorProperties.FindAll(p => p != null && p.propertyName != null && p.propertyName.StartsWith(ApparelTintPrefix, System.StringComparison.Ordinal))
@@ -305,7 +274,7 @@ namespace CardShopCoop.Sync
                 CoopPlugin.Log.LogWarning("Character appearance reset during " + context + ": " + e.Message);
                 try
                 {
-                    custom.Initialize();
+                    InitializeModelDefault(custom);
                 }
                 catch (System.Exception resetError)
                 {
@@ -582,21 +551,29 @@ namespace CardShopCoop.Sync
             var prefab = female ? _customers.m_CustomerFemalePrefab : _customers.m_CustomerPrefab;
             if (prefab == null)
                 return null;
-            _editorHolder = new GameObject("CoopCharacterEditorTemplate");
-            _editorHolder.SetActive(false);
-            var clone = Object.Instantiate(prefab.gameObject, _editorHolder.transform);
-            var customer = clone.GetComponent<Customer>();
-            _editorCustomization = customer != null
-                ? customer.m_CharacterCustom
-                : clone.GetComponentInChildren<CC.CharacterCustomization>(true);
-            _editorFemale = female;
-            if (_editorCustomization != null)
+            var holder = new GameObject("CoopCharacterEditorTemplate");
+            holder.SetActive(false);
+            CC.CharacterCustomization custom = null;
+            try
             {
-                _editorCustomization.CharacterName = (female ? "Female" : "Male") + "0";
-                _editorCustomization.Initialize();
-                CoopPlugin.Log.LogInfo($"character editor template: {(female ? "female" : "male")}, hair slots={_editorCustomization.HairTables.Count}, apparel slots={_editorCustomization.ApparelTables.Count}, presets={(_editorCustomization.Presets != null && _editorCustomization.Presets.Presets != null ? _editorCustomization.Presets.Presets.Count : 0)}");
+                var clone = Object.Instantiate(prefab.gameObject, holder.transform);
+                var customer = clone.GetComponent<Customer>();
+                custom = customer != null ? customer.m_CharacterCustom
+                    : clone.GetComponentInChildren<CC.CharacterCustomization>(true);
+                if (custom == null)
+                    throw new System.InvalidOperationException("Customer prefab has no customization");
+                CharacterTemplate.InitializeFresh(custom, female);
+                _editorHolder = holder;
+                _editorCustomization = custom;
+                _editorFemale = female;
+                return custom;
             }
-            return _editorCustomization;
+            catch (System.Exception e)
+            {
+                CoopPlugin.Log.LogWarning($"Character editor initialization failed: female={female}, {CharacterTemplate.Describe(custom)}; {e}");
+                Object.DestroyImmediate(holder);
+                throw;
+            }
         }
 
         public List<CC.CC_Property> GetBlendshapes(Transform root, bool female)
@@ -988,7 +965,7 @@ namespace CardShopCoop.Sync
                     var data = JsonConvert.DeserializeObject<CC.CC_CharacterData>(model.CustomizationJson);
                     if (data != null && (CoopPlugin.AllowNsfw.Value || !IsNude(data)))
                     {
-                        NormalizeCharacterData(_previewCustomization, data);
+                        CharacterTemplate.NormalizeCharacterData(_previewCustomization, data);
                         _previewCustomization.StoredCharacterData = data;
                         if (TryApplyCharacterData(_previewCustomization, data, "character preview"))
                             ClearEmptyWardrobeSlots(_previewCustomization, data);
@@ -1655,7 +1632,7 @@ namespace CardShopCoop.Sync
                             // mixed outfit (top on, bottom nude) is censored too.
                             if (!CoopPlugin.AllowNsfw.Value)
                                 ClotheNudeSlots(cust.m_CharacterCustom, data);
-                            NormalizeCharacterData(cust.m_CharacterCustom, data);
+                            CharacterTemplate.NormalizeCharacterData(cust.m_CharacterCustom, data);
                             cust.m_CharacterCustom.StoredCharacterData = data;
                             if (TryApplyCharacterData(cust.m_CharacterCustom, data, "remote avatar"))
                                 ClearEmptyWardrobeSlots(cust.m_CharacterCustom, data);
