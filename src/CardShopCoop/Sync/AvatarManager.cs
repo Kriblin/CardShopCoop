@@ -1849,7 +1849,7 @@ namespace CardShopCoop.Sync
             tmp.alignment = TMPro.TextAlignmentOptions.Center;
             tmp.fontSize = 1.8f;
             tmp.color = color;
-            tmp.enableWordWrapping = false;
+            tmp.textWrappingMode = TMPro.TextWrappingModes.NoWrap;
             tmp.overflowMode = TMPro.TextOverflowModes.Overflow;
             tmp.rectTransform.sizeDelta = new Vector2(4f, 1f);
             if (_tagFont == null)
