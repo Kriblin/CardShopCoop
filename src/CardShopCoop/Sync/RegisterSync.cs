@@ -166,7 +166,7 @@ namespace CardShopCoop.Sync
         private ShelfManager Sm()
         {
             if (_sm == null)
-                _sm = Object.FindObjectOfType<ShelfManager>();
+                _sm = Object.FindFirstObjectByType<ShelfManager>();
             return _sm;
         }
 
@@ -900,7 +900,7 @@ namespace CardShopCoop.Sync
 
         private static int CustomerListIndex(Customer cust)
         {
-            var cm = Object.FindObjectOfType<CustomerManager>();
+            var cm = Object.FindFirstObjectByType<CustomerManager>();
             if (cm == null)
                 return 0;
             var list = cm.GetCustomerList();
@@ -1863,7 +1863,7 @@ namespace CardShopCoop.Sync
             if (_carrier.TryGetValue(idx, out var c) && c != null)
                 return c;
             Customer carrier = null;
-            var cm = Object.FindObjectOfType<CustomerManager>();
+            var cm = Object.FindFirstObjectByType<CustomerManager>();
             if (cm != null)
             {
                 var list = cm.GetCustomerList();

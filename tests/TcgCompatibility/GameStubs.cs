@@ -38,7 +38,7 @@ namespace UnityEngine
     public class Object
     {
         public static readonly Dictionary<Type, object> Scene = new();
-        public static T FindObjectOfType<T>() where T : class => Scene.TryGetValue(typeof(T), out var o) ? (T)o : null;
+        public static T FindFirstObjectByType<T>() where T : class => Scene.TryGetValue(typeof(T), out var o) ? (T)o : null;
     }
 }
 namespace HarmonyLib

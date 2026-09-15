@@ -1648,7 +1648,7 @@ namespace CardShopCoop
 
         /// <summary>
         /// Ends the guest's load hold from the game's actual completion signal rather than
-        /// from a guessed number of seconds.  FindObjectOfType is deliberate here: asking
+        /// from a guessed number of seconds.  FindFirstObjectByType is deliberate here: asking
         /// CSingleton&lt;ShelfManager&gt;.Instance during a scene transition can create a fake,
         /// empty manager and make the readiness check lie.
         /// </summary>
@@ -1661,7 +1661,7 @@ namespace CardShopCoop
             if (Time.frameCount <= _reloadStartedFrame || Time.realtimeSinceStartup - _reloadStartedAt < 0.25f)
                 return false;
 
-            var shelfManager = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+            var shelfManager = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
             if (shelfManager == null || !shelfManager.m_FinishLoadingObjectData)
                 return false;
 
@@ -1700,7 +1700,7 @@ namespace CardShopCoop
         private static InventoryBase Inv()
         {
             if (_inventory == null)
-                _inventory = FindObjectOfType<InventoryBase>();
+                _inventory = FindFirstObjectByType<InventoryBase>();
             return _inventory;
         }
 
@@ -2040,16 +2040,16 @@ namespace CardShopCoop
         private void NpcSweepTick()
         {
             // the shop-naming world trigger (and its "!" marker) is host-only; find it
-            // ONCE - once disabled, FindObjectOfType can never see it again and each
+            // ONCE - once disabled, FindFirstObjectByType can never see it again and each
             // retry was a full-scene scan for nothing
             if (!_renamerHandled)
             {
                 _renamerHandled = true;
-                var renamer = FindObjectOfType<ShopRenamer>();
+                var renamer = FindFirstObjectByType<ShopRenamer>();
                 if (renamer != null && renamer.gameObject.activeSelf)
                 {
                     // FIX E2: cache the 3D sign TMP BEFORE disabling - once the renamer
-                    // GameObject is inactive, FindObjectOfType can't reach it again.
+                    // GameObject is inactive, FindFirstObjectByType can't reach it again.
                     try
                     {
                         _shopSign = renamer.m_ShopName;
@@ -2070,7 +2070,7 @@ namespace CardShopCoop
                 }
             }
             if (_cmSweep == null)
-                _cmSweep = FindObjectOfType<CustomerManager>();
+                _cmSweep = FindFirstObjectByType<CustomerManager>();
             if (_cmSweep != null)
             {
                 var list = _cmSweep.GetCustomerList();
@@ -2169,7 +2169,7 @@ namespace CardShopCoop
 
         /// <summary>The game assigns neither CGameManager.Player nor
         /// InteractionPlayerController.m_Instance (both are dead statics), so find the
-        /// player controller in the scene once and cache its transform. FindObjectOfType
+        /// player controller in the scene once and cache its transform. FindFirstObjectByType
         /// never auto-creates, unlike CSingleton&lt;T&gt;.Instance.</summary>
         private Transform _playerTf;   // the MOVING body: IPC.m_WalkerCtrl (CMF walker)
         private Transform _playerCamTf; // player camera, for look yaw
@@ -2188,7 +2188,7 @@ namespace CardShopCoop
                 return _playerTf;
             var ipc = InteractionPlayerController.m_Instance;
             if (ipc == null)
-                ipc = FindObjectOfType<InteractionPlayerController>();
+                ipc = FindFirstObjectByType<InteractionPlayerController>();
             if (ipc != null)
             {
                 _playerIpc = ipc;
@@ -2264,7 +2264,7 @@ namespace CardShopCoop
 
                 var ipc = InteractionPlayerController.m_Instance;
                 if (ipc == null)
-                    ipc = FindObjectOfType<InteractionPlayerController>();
+                    ipc = FindFirstObjectByType<InteractionPlayerController>();
                 if (ipc == null)
                     return;
 
@@ -3158,7 +3158,7 @@ namespace CardShopCoop
         {
             try
             {
-                var panels = FindObjectsOfType<RestockItemPanelUI>(); // active = phone open
+                var panels = FindObjectsByType<RestockItemPanelUI>(UnityEngine.FindObjectsSortMode.InstanceID); // active = phone open
                 foreach (var p in panels)
                 {
                     if (!(FiPanelIndex?.GetValue(p) is int idx) || idx < 0)
@@ -4453,7 +4453,7 @@ namespace CardShopCoop
                 try
                 {
                     if (_lightManager == null)
-                        _lightManager = FindObjectOfType<LightManager>();
+                        _lightManager = FindFirstObjectByType<LightManager>();
                     if (_lightManager != null && MiUpdateLightData != null && CPlayerData.m_LightTimeData != null)
                     {
                         MiUpdateLightData.Invoke(_lightManager, null); // refresh bundle from live state
@@ -4683,7 +4683,7 @@ namespace CardShopCoop
                 try
                 {
                     if (_lightManager == null)
-                        _lightManager = FindObjectOfType<LightManager>();
+                        _lightManager = FindFirstObjectByType<LightManager>();
                     if (_lightManager != null)
                     {
                         if (FiTimeHour != null)
@@ -5714,7 +5714,7 @@ namespace CardShopCoop
         private void ApplySprayHit(SprayHitMessage message)
         {
             if (_cmSpray == null)
-                _cmSpray = FindObjectOfType<CustomerManager>();
+                _cmSpray = FindFirstObjectByType<CustomerManager>();
             if (_cmSpray == null)
                 return;
             var customers = _cmSpray.GetCustomerList();

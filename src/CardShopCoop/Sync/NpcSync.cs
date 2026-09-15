@@ -182,7 +182,7 @@ namespace CardShopCoop.Sync
                 _sendTimer = SendInterval; // clamp debt after a hitch
 
             if (_cm == null)
-                _cm = Object.FindObjectOfType<CustomerManager>();
+                _cm = Object.FindFirstObjectByType<CustomerManager>();
             if (_cm == null)
                 return null;
 
@@ -452,7 +452,7 @@ namespace CardShopCoop.Sync
             _live.ReleaseWorkerBoxProp(p);
             try
             {
-                var rm = Object.FindObjectOfType<RestockManager>();
+                var rm = Object.FindFirstObjectByType<RestockManager>();
                 var prefab = isBig ? rm?.m_PackageBoxPrefab : rm?.m_PackageBoxSmallPrefab;
                 if (prefab == null || p.HoldBox == null)
                     return;
@@ -559,7 +559,7 @@ namespace CardShopCoop.Sync
         private static InventoryBase Inv()
         {
             if (_inv == null)
-                _inv = Object.FindObjectOfType<InventoryBase>();
+                _inv = Object.FindFirstObjectByType<InventoryBase>();
             return _inv;
         }
 
@@ -667,7 +667,7 @@ namespace CardShopCoop.Sync
         {
             // cached across calls; Unity's overloaded == re-resolves after scene changes
             if (s_diagCm == null)
-                s_diagCm = Object.FindObjectOfType<CustomerManager>();
+                s_diagCm = Object.FindFirstObjectByType<CustomerManager>();
             int n = 0;
             if (s_diagCm != null)
             {
@@ -689,7 +689,7 @@ namespace CardShopCoop.Sync
         public static int CountUnexpectedActiveNpcs()
         {
             if (s_diagCm == null)
-                s_diagCm = Object.FindObjectOfType<CustomerManager>();
+                s_diagCm = Object.FindFirstObjectByType<CustomerManager>();
             int n = 0;
             if (s_diagCm != null)
             {
@@ -731,7 +731,7 @@ namespace CardShopCoop.Sync
             if (_live == null || customer == null)
                 return 0;
             if (_live._cm == null)
-                _live._cm = Object.FindObjectOfType<CustomerManager>();
+                _live._cm = Object.FindFirstObjectByType<CustomerManager>();
             var list = _live._cm != null ? _live._cm.GetCustomerList() : null;
             if (list == null)
                 return 0;
@@ -761,7 +761,7 @@ namespace CardShopCoop.Sync
             if (_live == null || transform == null)
                 return false;
             if (_live._cm == null)
-                _live._cm = Object.FindObjectOfType<CustomerManager>();
+                _live._cm = Object.FindFirstObjectByType<CustomerManager>();
             var list = _live._cm != null ? _live._cm.GetCustomerList() : null;
             if (list == null)
                 return false;
@@ -1428,7 +1428,7 @@ namespace CardShopCoop.Sync
             if (kind == KindWorker)
             {
                 if (_wmClient == null)
-                    _wmClient = Object.FindObjectOfType<WorkerManager>();
+                    _wmClient = Object.FindFirstObjectByType<WorkerManager>();
                 if (_wmClient == null)
                     return;
                 var workers = WorkerManager.GetWorkerList();
@@ -1452,7 +1452,7 @@ namespace CardShopCoop.Sync
             else
             {
                 if (_cmClient == null)
-                    _cmClient = Object.FindObjectOfType<CustomerManager>();
+                    _cmClient = Object.FindFirstObjectByType<CustomerManager>();
                 if (_cmClient == null)
                     return;
                 var prefab = female ? _cmClient.m_CustomerFemalePrefab : _cmClient.m_CustomerPrefab;

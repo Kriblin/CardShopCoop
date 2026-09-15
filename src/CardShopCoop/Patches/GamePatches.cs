@@ -994,7 +994,7 @@ namespace CardShopCoop.Patches
             try
             {
                 if (_sprayIpc == null)
-                    _sprayIpc = UnityEngine.Object.FindObjectOfType<InteractionPlayerController>();
+                    _sprayIpc = UnityEngine.Object.FindFirstObjectByType<InteractionPlayerController>();
                 var ipc = _sprayIpc;
                 bool handheld = ipc != null
                     && FiHoldSprayItem?.GetValue(ipc) != null

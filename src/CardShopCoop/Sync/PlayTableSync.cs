@@ -127,7 +127,7 @@ namespace CardShopCoop.Sync
         private ShelfManager Sm()
         {
             if (_sm == null)
-                _sm = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+                _sm = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
             return _sm;
         }
 
@@ -382,7 +382,7 @@ namespace CardShopCoop.Sync
         {
             if (_applied.Count == 0)
                 return;
-            var sm = _sm; // cached only - never FindObjectOfType during teardown
+            var sm = _sm; // cached only - never FindFirstObjectByType during teardown
             var tables = sm != null ? sm.m_PlayTableList : null;
             if (tables != null)
             {

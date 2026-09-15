@@ -69,9 +69,9 @@ namespace CardShopCoop.Sync
         public static ShelfManager Sm()
         {
             // Cached: Unity's fake-null self-invalidates across a scene change, so a stale
-            // reference needs no explicit reset. FindObjectOfType per box was a snapshot stall.
+            // reference needs no explicit reset. FindFirstObjectByType per box was a snapshot stall.
             if (_sm == null)
-                _sm = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+                _sm = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
             return _sm;
         }
 

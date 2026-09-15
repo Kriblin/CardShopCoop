@@ -74,7 +74,7 @@ namespace CardShopCoop.Sync
         private UnlockRoomManager Urm()
         {
             if (_urm == null)
-                _urm = UnityEngine.Object.FindObjectOfType<UnlockRoomManager>();
+                _urm = UnityEngine.Object.FindFirstObjectByType<UnlockRoomManager>();
             return _urm;
         }
 
@@ -117,21 +117,21 @@ namespace CardShopCoop.Sync
         {
             // phone screens live disabled until opened - the plain overload misses them
             if (_billScreen == null)
-                _billScreen = UnityEngine.Object.FindObjectOfType<RentBillScreen>(true);
+                _billScreen = UnityEngine.Object.FindFirstObjectByType<RentBillScreen>(UnityEngine.FindObjectsInactive.Include);
             return _billScreen;
         }
 
         private InteractableOpenCloseSign OpenSign()
         {
             if (_openSign == null)
-                _openSign = UnityEngine.Object.FindObjectOfType<InteractableOpenCloseSign>(true);
+                _openSign = UnityEngine.Object.FindFirstObjectByType<InteractableOpenCloseSign>(UnityEngine.FindObjectsInactive.Include);
             return _openSign;
         }
 
         private InteractableWarehouseAllowEnterSign WarehouseSign()
         {
             if (_warehouseSign == null)
-                _warehouseSign = UnityEngine.Object.FindObjectOfType<InteractableWarehouseAllowEnterSign>(true);
+                _warehouseSign = UnityEngine.Object.FindFirstObjectByType<InteractableWarehouseAllowEnterSign>(UnityEngine.FindObjectsInactive.Include);
             return _warehouseSign;
         }
 
@@ -472,7 +472,7 @@ namespace CardShopCoop.Sync
             try
             {
                 if (_shelfMgr == null)
-                    _shelfMgr = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+                    _shelfMgr = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
                 if (_shelfMgr != null)
                     _shelfMgr.SaveInteractableObjectData();
             }
@@ -672,7 +672,7 @@ namespace CardShopCoop.Sync
             CPlayerData.m_TutorialDataList.AddRange(incoming);
             CPlayerData.m_TutorialIndex = tutIndex;
 
-            var tm = UnityEngine.Object.FindObjectOfType<TutorialManager>(); // NOT CSingleton (fake-manager trap)
+            var tm = UnityEngine.Object.FindFirstObjectByType<TutorialManager>(); // NOT CSingleton (fake-manager trap)
             if (tm == null || tm.m_TutorialSubGroupList == null)
                 return;
             foreach (var sg in tm.m_TutorialSubGroupList)

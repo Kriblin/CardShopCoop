@@ -69,7 +69,7 @@ namespace CardShopCoop
             if (MiDayReset == null)
                 return;
             if (_lightManager == null)
-                _lightManager = FindObjectOfType<LightManager>();
+                _lightManager = FindFirstObjectByType<LightManager>();
             if (_lightManager == null)
                 return;
 
@@ -145,7 +145,7 @@ namespace CardShopCoop
         {
             try
             {
-                var switches = FindObjectsOfType<InteractableLightSwitch>(true);
+                var switches = FindObjectsByType<InteractableLightSwitch>(UnityEngine.FindObjectsInactive.Include, UnityEngine.FindObjectsSortMode.InstanceID);
                 for (int i = 0; i < switches.Length; i++)
                 {
                     var sw = switches[i];

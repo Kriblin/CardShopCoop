@@ -51,9 +51,9 @@ namespace CardShopCoop.Sync
         // through native deck callbacks or an already running battle coroutine.
         internal static bool CanStartHosting()
         {
-            var workbench = UnityEngine.Object.FindObjectOfType<WorkbenchUIScreen>();
-            var battle = UnityEngine.Object.FindObjectOfType<PlayTableGame>();
-            var player = UnityEngine.Object.FindObjectOfType<InteractionPlayerController>();
+            var workbench = UnityEngine.Object.FindFirstObjectByType<WorkbenchUIScreen>();
+            var battle = UnityEngine.Object.FindFirstObjectByType<PlayTableGame>();
+            var player = UnityEngine.Object.FindFirstObjectByType<InteractionPlayerController>();
             var table = battle == null ? null : AccessTools.Field(typeof(PlayTableGame), "m_CurrentInteractablePlayTable")?.GetValue(battle);
             return (player == null || !(bool)AccessTools.Field(typeof(InteractionPlayerController), "m_IsPlayTableGameMode").GetValue(player))
                 && (workbench == null || !(bool)AccessTools.Field(typeof(WorkbenchUIScreen), "m_IsEditingDeck").GetValue(workbench))
