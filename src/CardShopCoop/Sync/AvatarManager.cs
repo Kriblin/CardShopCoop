@@ -123,6 +123,14 @@ namespace CardShopCoop.Sync
         private GameObject _previewBody;
         private CC.CharacterCustomization _previewCustomization;
         private string _previewSignature;
+        private Customer _previewPrefab;
+        private bool _previewFallback;
+        private readonly AvatarTemplateCache<Customer, EditorTemplate> _previewTemplates =
+            new AvatarTemplateCache<Customer, EditorTemplate>(template =>
+            {
+                if (template.Holder != null)
+                    Object.DestroyImmediate(template.Holder);
+            });
         private const string ApparelTintPrefix = "CardShopCoop.ApparelTint.";
 
         public void SetName(int connId, string name)
@@ -919,12 +927,21 @@ namespace CardShopCoop.Sync
                 return;
             }
 
-            string signature = (model.Female ? "F" : "M") + model.ModelIndex + ":" + (model.CustomizationJson ?? "");
-            if (_previewBody == null || _previewSignature != signature)
+            if (_customers == null)
+                _customers = Object.FindObjectOfType<CustomerManager>();
+            var prefab = _customers == null ? null
+                : model.Female ? _customers.m_CustomerFemalePrefab : _customers.m_CustomerPrefab;
+            string signature = (model.Female ? "F" : "M") + model.ModelIndex + ":"
+                + CoopPlugin.AllowNsfw.Value + ":" + (model.CustomizationJson ?? "");
+            if (_previewSignature != signature || _previewPrefab != prefab)
             {
                 DestroyPreview();
-                SpawnPreview(model);
                 _previewSignature = signature;
+                _previewPrefab = prefab;
+            }
+            if (_previewBody == null)
+            {
+                SpawnPreview(model);
             }
             if (_previewBody == null)
                 return;
@@ -934,7 +951,7 @@ namespace CardShopCoop.Sync
                 forward = player.forward;
             forward.Normalize();
             Vector3 position = player.position + forward * 1.6f;
-            position.y = player.position.y;
+            position.y = player.position.y + (_previewFallback ? 1f : 0f);
             _previewBody.transform.position = position;
             Vector3 towardPlayer = player.position - position;
             towardPlayer.y = 0f;
@@ -944,11 +961,14 @@ namespace CardShopCoop.Sync
 
         public void DestroyPreview()
         {
-            if (_previewBody != null)
+            _previewTemplates.Clear();
+            if (_previewFallback && _previewBody != null)
                 Object.Destroy(_previewBody);
+            _previewFallback = false;
             _previewBody = null;
             _previewCustomization = null;
             _previewSignature = null;
+            _previewPrefab = null;
         }
 
         private void SpawnPreview(PlayerModelEntry model)
@@ -960,52 +980,72 @@ namespace CardShopCoop.Sync
             var prefab = model.Female ? _customers.m_CustomerFemalePrefab : _customers.m_CustomerPrefab;
             if (prefab == null)
                 return;
-            var holder = new GameObject("CoopCharacterPreviewHolder_tmp");
-            holder.SetActive(false);
-            var clone = Object.Instantiate(prefab.gameObject, holder.transform);
-            clone.transform.SetParent(null, false);
-            clone.SetActive(true);
-            Object.Destroy(holder);
-
-            var customer = clone.GetComponent<Customer>();
-            HideCustomerProps(customer, "character preview");
-            _previewCustomization = customer != null ? customer.m_CharacterCustom
-                : clone.GetComponentInChildren<CC.CharacterCustomization>(true);
-            if (_previewCustomization != null)
-            {
-                _previewCustomization.CharacterName = (model.Female ? "Female" : "Male") + Mathf.Max(0, model.ModelIndex);
-                _previewCustomization.Initialize();
-                // A null payload, a nude payload with NSFW off, or an undecodable payload
-                // all keep the game's initialized (clothed) preset instead of stripping it.
-                if (!string.IsNullOrEmpty(model.CustomizationJson))
+            var template = _previewTemplates.Get(prefab, model.Female,
+                candidate => candidate.Holder != null,
+                candidate =>
                 {
-                    var data = JsonConvert.DeserializeObject<CC.CC_CharacterData>(model.CustomizationJson);
-                    if (data != null && (CoopPlugin.AllowNsfw.Value || !IsNude(data)))
-                    {
-                        CharacterTemplate.NormalizeCharacterData(_previewCustomization, data);
-                        _previewCustomization.StoredCharacterData = data;
-                        if (TryApplyCharacterData(_previewCustomization, data, "character preview"))
-                            ClearEmptyWardrobeSlots(_previewCustomization, data);
-                    }
-                }
-            }
+                    candidate.Holder = new GameObject("CoopCharacterPreviewHolder");
+                    candidate.Holder.SetActive(false);
+                    var clone = Object.Instantiate(prefab.gameObject, candidate.Holder.transform);
 
-            foreach (var mb in clone.GetComponentsInChildren<MonoBehaviour>(true))
+                    var customer = clone.GetComponent<Customer>();
+                    HideCustomerProps(customer, "character preview");
+                    _previewCustomization = customer != null ? customer.m_CharacterCustom
+                        : clone.GetComponentInChildren<CC.CharacterCustomization>(true);
+                    if (_previewCustomization != null)
+                    {
+                        candidate.Customization = _previewCustomization;
+                        candidate.BeforeInitialization = CharacterTemplate.Describe(_previewCustomization);
+                        CharacterTemplate.InitializeFresh(_previewCustomization, model.Female,
+                            (model.Female ? "Female" : "Male") + Mathf.Max(0, model.ModelIndex));
+                        // Missing or filtered data keeps the detached clothed preset.
+                        // Malformed data is contained by the preview owner below.
+                        if (!string.IsNullOrEmpty(model.CustomizationJson))
+                        {
+                            var data = JsonConvert.DeserializeObject<CC.CC_CharacterData>(model.CustomizationJson);
+                            if (data != null && (CoopPlugin.AllowNsfw.Value || !IsNude(data)))
+                            {
+                                CharacterTemplate.NormalizeCharacterData(_previewCustomization, data);
+                                _previewCustomization.StoredCharacterData = data;
+                                if (!TryApplyCharacterData(_previewCustomization, data, "character preview"))
+                                    throw new System.InvalidOperationException("Preview appearance could not be applied");
+                                ClearEmptyWardrobeSlots(_previewCustomization, data);
+                            }
+                        }
+                    }
+
+                    foreach (var mb in clone.GetComponentsInChildren<MonoBehaviour>(true))
+                    {
+                        if (mb == null)
+                            continue;
+                        string name = mb.GetType().Name;
+                        if (name == "CopyPose" || name == "BlendshapeManager" || name == "ScaleCharacter"
+                            || name == "CharacterCustomization" || name == "TransformBone" || name == "MipBiasAdjust")
+                            continue;
+                        Object.DestroyImmediate(mb);
+                    }
+                    foreach (var col in clone.GetComponentsInChildren<Collider>(true))
+                        Object.DestroyImmediate(col);
+                    foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
+                        Object.DestroyImmediate(rb);
+                    if (_previewCustomization == null)
+                        throw new System.InvalidOperationException("Customer prefab has no customization");
+                    clone.name = "CoopCharacterPreview";
+                    clone.SetActive(true);
+                    candidate.Holder.SetActive(true);
+                },
+                (candidate, error) => CoopPlugin.Log.LogWarning(
+                    $"Character preview unavailable; change appearance or reopen the editor to retry: female={model.Female}, model={model.ModelIndex}; "
+                    + $"before=[{candidate.BeforeInitialization}], after=[{CharacterTemplate.Describe(candidate.Customization)}]; {error}"));
+            _previewBody = template?.Holder;
+            _previewCustomization = template?.Customization;
+            if (template == null)
             {
-                if (mb == null)
-                    continue;
-                string name = mb.GetType().Name;
-                if (name == "CopyPose" || name == "BlendshapeManager" || name == "ScaleCharacter"
-                    || name == "CharacterCustomization" || name == "TransformBone" || name == "MipBiasAdjust")
-                    continue;
-                Object.DestroyImmediate(mb);
+                _previewBody = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                _previewBody.name = "CoopCharacterPreviewFallback";
+                Object.DestroyImmediate(_previewBody.GetComponent<Collider>());
+                _previewFallback = true;
             }
-            foreach (var col in clone.GetComponentsInChildren<Collider>(true))
-                Object.DestroyImmediate(col);
-            foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
-                Object.DestroyImmediate(rb);
-            clone.name = "CoopCharacterPreview";
-            _previewBody = clone;
         }
 
         /// <summary>Tears down the spawned body AND the animator/pose flags Tick tracks for

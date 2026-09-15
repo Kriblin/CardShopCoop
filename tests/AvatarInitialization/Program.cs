@@ -143,6 +143,50 @@ cache.Clear();
 cache.Clear();
 Check(destroyed == beforeClear + 1, "cleanup is idempotent");
 
+// The preview uses the same production owner, keeping the clone under its holder
+// until destruction. Exercise failures both before and after dressing begins.
+foreach (bool female in new[] { false, true })
+{
+    foreach (string failure in new[] { "initialize", "json", "apply" })
+    {
+        int previewAttempts = 0, previewReports = 0, previewDestroyed = 0;
+        var preview = new AvatarTemplateCache<object, Template>(t =>
+        {
+            t.Destroyed = true;
+            previewDestroyed++;
+        });
+        Template candidate = null;
+        Template Open(bool fail) => preview.Get(source, female, t => !t.Destroyed, t =>
+        {
+            candidate = t;
+            previewAttempts++;
+            t.Custom = Custom(female);
+            t.Custom.ThrowOnInitialize = fail && failure == "initialize";
+            CharacterTemplate.InitializeFresh(t.Custom, female);
+            var data = JsonConvert.DeserializeObject<CC.CC_CharacterData>(
+                fail && failure == "json" ? "{invalid" : JsonConvert.SerializeObject(Preset(female ? "Female0" : "Male0")));
+            CharacterTemplate.NormalizeCharacterData(t.Custom, data);
+            t.Custom.ThrowOnApply = fail && failure == "apply";
+            t.Custom.ApplyCharacterVars(data);
+        }, (_, _) => previewReports++);
+        Check(Open(true) == null && candidate.Destroyed && previewDestroyed == 1,
+            $"preview {female}/{failure}: failed candidate and owned holder are released");
+        for (int frame = 0; frame < 1000; frame++)
+            Open(true);
+        Check(previewAttempts == 1 && previewReports == 1,
+            $"preview {female}/{failure}: unchanged failure is suppressed for 1000 updates");
+        // Production clears this owner on input/prefab/filter change, closing, or session reset.
+        preview.Clear();
+        var recovered = Open(false);
+        Check(recovered != null && previewAttempts == 2 && recovered.Custom.Applies == 2,
+            $"preview {female}/{failure}: deliberate reset renders valid saved data");
+        preview.Clear();
+        preview.Clear();
+        Check(recovered.Destroyed && previewDestroyed == 2,
+            $"preview {female}/{failure}: close/reset cleanup is idempotent");
+    }
+}
+
 int stateReports = 0;
 var snapshot = new object();
 Check(ReferenceEquals(OptionalAppearanceState.Build(() => snapshot, _ => stateReports++), snapshot),
