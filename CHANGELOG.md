@@ -5,6 +5,17 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 
 ---
 
+## 1.3.5
+**Player and NPC mirrors now prepare their movement components safely.**
+
+- Fixed preview and remote-player cleanup attempting to remove a pathfinding
+  component while another component still required it.
+- Customer and worker mirrors now finish preparation before becoming active.
+  Their local navigation stays disabled, while cosmetic animation and worker
+  interaction controls remain available.
+- Unity cleanup, worker interactions, and two-player movement still need in-game
+  verification, including supported worker appearance mods.
+
 ## 1.3.4
 **Appearance previews and remote players now prepare their wardrobes safely.**
 

@@ -1,6 +1,6 @@
 # Game 1.0 compatibility checklist
 
-CardShopCoop version: **1.3.4**. Previously documented tested game version:
+CardShopCoop version: **1.3.5**. Previously documented tested game version:
 **0.70.3**. Target: **TCG Card Shop Simulator 1.0**.
 
 This checklist records a source-based assessment. Two-player runtime verification
@@ -354,3 +354,41 @@ No deployment or two-player testing was performed. **M9 runtime sign-off remains
 
 **Exit criteria:** Supported presets render locally and remotely; invalid appearance
 data produces a controlled fallback without interrupting updates or leaking clones.
+
+## M10 — Respect component dependencies when creating mirrors · P2, impact pending
+
+**Confirmed:** Unity rejects removing `Seeker` because `SimpleSmoothModifier`
+depends on it 11 times. The log has no caller stack for these errors. Avatar clone
+cleanup currently removes behaviours by enumeration order, making it a candidate
+to inspect alongside customer/worker mirror cleanup.
+
+- [x] Inspect installed pathfinding dependencies and native customer/worker lifecycle.
+  `SimpleSmoothModifier` and `AIBase` require `Seeker`; `MonoModifier` registers and
+  unregisters through enable/disable callbacks. Customer `Start` reads its Seeker.
+- [ ] Attribute the supplied log's 11 errors to exact runtime clones/callers. The
+  avatar removal order is a confirmed unsafe path, but the log has no caller stack.
+- [x] Remove dependent modifiers before their required components, and keep clones
+  inactive until preparation is complete where their lifecycle requires it.
+- [ ] Verify preview, remote-player, customer, and worker creation/destruction through
+  joins, appearance changes, disconnects, and scene reloads.
+- [ ] Confirm mirrored objects retain no active local AI/pathfinding and preserve
+  host-controlled movement; escalate to P1 if gameplay interference is reproduced.
+
+**Implementation validation:** Plugin **1.3.5**, wire **103** (unchanged).
+Preview and remote-avatar cleanup now reads inherited `RequireComponent` dependencies
+and removes dependents first. If a retained cosmetic component still needs a removable
+component, the prerequisite remains disabled and a contextual warning identifies it.
+NPC mirrors stay inactive through preparation; local logic is disabled using base types,
+including all Pathfinding behaviours and native navigation components. Worker interaction
+controls and cosmetic helpers retain their existing roles.
+
+Release build (0 warnings, 0 errors), restore, required whitespace verification,
+20 new mirror-cleanup checks, 69 avatar checks, four validation-tool checks, and the
+metadata audit (358 member references, 202 hooks, 113 integration contracts) pass.
+The new harness models Unity dependency rejection and is included in the standard
+validation script. See [mirror cleanup tests and runtime matrix](tests/MirrorComponents/README.md).
+No deployment or two-player testing was performed. **M10 runtime sign-off remains pending**,
+including appearance-mod compatibility, worker UI, and host-controlled movement.
+
+**Exit criteria:** Clone cleanup emits no dependency errors and leaves only the
+components needed for mirrored behavior.
