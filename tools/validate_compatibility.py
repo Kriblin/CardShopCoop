@@ -13,7 +13,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = "src/CardShopCoop/CardShopCoop.csproj"
-HARNESSES = ("AvatarInitialization", "MarketCompatibility", "ShelfBoxPull", "TcgCompatibility", "WorldLoading", "GameCompatibility")
+HARNESSES = ("AvatarInitialization", "MirrorComponents", "MarketCompatibility", "ShelfBoxPull", "TcgCompatibility", "WorldLoading", "GameCompatibility")
 
 
 def sha256(path):

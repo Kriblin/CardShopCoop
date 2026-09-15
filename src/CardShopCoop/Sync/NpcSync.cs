@@ -1464,14 +1464,12 @@ namespace CardShopCoop.Sync
             var holder = new GameObject("CoopNpcHolder_tmp");
             holder.SetActive(false);
             var clone = Object.Instantiate(prefabObject, holder.transform);
-            // A customer mirror must build its private runtime slots before Start can
-            // observe the copied public initialization flag or load an unnormalized preset.
-            if (kind == KindCustomer)
-                clone.SetActive(false);
+            // Both prefab and live-worker clones stay inactive through preparation.
+            // Disable local AI before activation, including native navigation behaviours.
+            clone.SetActive(false);
+            MirrorComponents.DisableNpcLogic(clone);
             clone.transform.SetParent(null, worldPositionStays: false);
             clone.transform.position = pos;
-            if (kind != KindCustomer)
-                clone.SetActive(true);
             Object.Destroy(holder);
 
             var cust = clone.GetComponent<Customer>();
@@ -1516,8 +1514,6 @@ namespace CardShopCoop.Sync
             {
                 CoopPlugin.Log.LogWarning($"NPC dressing '{charName}': {e.Message}");
             }
-            if (kind == KindCustomer)
-                clone.SetActive(true);
 
             // capture prop children BEFORE stripping the Customer script
             if (cust != null)
@@ -1556,22 +1552,9 @@ namespace CardShopCoop.Sync
                     p.Exclaim.SetActive(false);
             }
 
-            // CharacterCustomization must survive the strip so wardrobe changes can
-            // re-dress in place instead of Destroy+Instantiate churn
-            foreach (var mb in clone.GetComponentsInChildren<MonoBehaviour>(true))
-            {
-                if (mb == null)
-                    continue;
-                string tn = mb.GetType().Name;
-                if (tn == "Worker" || tn == "Customer" || tn == "WorkerCollider"
-                    || tn == "NavMeshAgent" || tn == "NavMeshObstacle" || tn == "Seeker"
-                    || tn == "FunnelModifier" || tn == "InteractableObject")
-                {
-                    var behaviour = mb as Behaviour;
-                    if (behaviour != null)
-                        behaviour.enabled = false;
-                }
-            }
+            // Keep cosmetics and the worker UI model; local AI stays disabled.
+            // Repeat after dressing in case preparation added a navigation component.
+            MirrorComponents.DisableNpcLogic(clone);
             foreach (var col in clone.GetComponentsInChildren<Collider>(true))
                 col.enabled = false;
             foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
@@ -1617,6 +1600,7 @@ namespace CardShopCoop.Sync
             p.RenderYaw = 0f;
             p.AnimSpeed = 0f;
             p.AppliedFlags = -1;
+            clone.SetActive(true);
         }
     }
 }

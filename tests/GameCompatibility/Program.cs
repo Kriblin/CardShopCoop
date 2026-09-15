@@ -179,6 +179,22 @@ bool UsesField(MethodDefinition method, string declaringType, string name) => me
     && method.Body.Instructions.Any(i => i.Operand is FieldReference f && f.DeclaringType.Name == declaringType && f.Name == name);
 bool Calls(MethodDefinition method, string declaringType, string name) => method?.HasBody == true
     && method.Body.Instructions.Any(i => i.Operand is MethodReference m && m.DeclaringType.Name == declaringType && m.Name == name);
+// M10: inspect installed navigation dependencies and the production cleanup wiring.
+foreach (string type in new[] { "Pathfinding.SimpleSmoothModifier", "Pathfinding.AIBase" })
+    Require(Find(type)?.CustomAttributes.Any(a => a.AttributeType.FullName == "UnityEngine.RequireComponent"
+        && a.ConstructorArguments.Any(v => v.Value is TypeReference t && t.FullName == "Pathfinding.Seeker")) == true,
+        type + " requires Seeker in the installed assembly");
+Require(Calls(Method("Pathfinding.MonoModifier", "OnEnable"), "Seeker", "RegisterModifier")
+    && Calls(Method("Pathfinding.MonoModifier", "OnDisable"), "Seeker", "DeregisterModifier"),
+    "native modifiers register only while enabled");
+Require(UsesField(Method("Customer", "Start"), "Customer", "m_Seeker"), "native customer Start depends on Seeker");
+Require(Calls(Method("AvatarManager", "TrySpawn"), "MirrorComponents", "StripAvatar"),
+    "remote avatar uses dependency-aware removal");
+Require(Find("AvatarManager").Module.GetTypes().Where(t => t.FullName.Contains("AvatarManager"))
+    .SelectMany(t => t.Methods).Any(m => m.Name.Contains("SpawnPreview") && Calls(m, "MirrorComponents", "StripAvatar")),
+    "preview uses dependency-aware removal");
+Require(Calls(Method("NpcSync", "Spawn"), "MirrorComponents", "DisableNpcLogic"),
+    "NPC spawn disables local navigation through the shared policy");
 string startupScene = Find("CGameManager")?.Fields.FirstOrDefault(f => f.Name == "k_StartSceneName")?.Constant as string;
 Require(startupScene == "StartOptimized", "native startup scene is StartOptimized");
 Require(Find("SaveTransfer")?.Fields.FirstOrDefault(f => f.Name == "WorldSceneName")?.Constant as string == startupScene,

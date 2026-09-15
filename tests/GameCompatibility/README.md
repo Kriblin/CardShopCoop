@@ -20,6 +20,8 @@ Coverage:
 - Literal `Try` patch registrations and typed reflection lookups, including inherited
   members; provided type signatures; hook argument names/types and instance/result types.
 - Native save fields and the customer tournament appearance restoration path.
+- Installed Seeker/modifier dependencies, modifier enable/disable registration,
+  and preview/remote/NPC use of the shared mirror cleanup helper.
 - Every `CPlayerData.m_GenCardMarketPriceList*` table in the plugin's snapshot DTO,
   capture, apply, and diagnostic checksum paths. New native tables fail this check
   until support is added. Ascension's price-generation guard is also checked.
