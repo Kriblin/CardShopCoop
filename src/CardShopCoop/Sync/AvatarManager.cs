@@ -269,7 +269,7 @@ namespace CardShopCoop.Sync
 
         private void InitializeModelDefault(CC.CharacterCustomization custom)
         {
-            if (custom == _editorCustomization)
+            if (custom.m_HasInit)
                 CharacterTemplate.ApplyDefault(custom, custom.CharacterName);
             else
                 custom.Initialize();
@@ -1582,18 +1582,17 @@ namespace CardShopCoop.Sync
             if (prefab == null)
                 return;
 
-            // Instantiate under an inactive holder (defers Awake), position it, then
-            // activate and IMMEDIATELY dress + strip within this same call - no game
-            // Update/Start can run in between, so the Customer AI never gets a frame.
+            // Prepare and strip the clone while inactive, before any customer lifecycle runs.
             var holder = new GameObject("CoopAvatarHolder_tmp");
             holder.SetActive(false);
             var clone = Object.Instantiate(prefab.gameObject, holder.transform);
+            clone.SetActive(false);
             clone.transform.SetParent(null, worldPositionStays: false);
             clone.transform.position = av.TargetPos;
-            clone.SetActive(true);
             Object.Destroy(holder);
 
             var cust = clone.GetComponent<Customer>();
+            string beforeDressing = CharacterTemplate.Describe(cust != null ? cust.m_CharacterCustom : null);
             try
             {
                 if (cust != null)
@@ -1618,15 +1617,10 @@ namespace CardShopCoop.Sync
                             + $"nude={(hasJson ? IsNude(av.CustomizationJson).ToString() : "n/a")} apparel={apparelDbg}",
                             av.GetHashCode(), 0.5f);
                     }
-                    if (!av.HasModel)
+                    CharacterTemplate.InitializeFresh(cust.m_CharacterCustom, female,
+                        (female ? "Female" : "Male") + (av.HasModel ? Mathf.Max(0, av.ModelIndex) : 0));
+                    if (av.HasModel)
                     {
-                        // No model was sent: fall back to the game's own random clothed wardrobe.
-                        cust.RandomizeCharacterMesh();
-                    }
-                    else
-                    {
-                        cust.m_CharacterCustom.CharacterName = (female ? "Female" : "Male") + av.ModelIndex;
-                        cust.m_CharacterCustom.Initialize();
                         CC.CC_CharacterData data = null;
                         if (hasJson)
                         {
@@ -1636,12 +1630,8 @@ namespace CardShopCoop.Sync
                             }
                             catch (System.Exception e) { Swallow.Log(e); }
                         }
-                        if (data == null)
-                        {
-                            // Unreadable payload: the safe fallback is a random clothed customer.
-                            cust.RandomizeCharacterMesh();
-                        }
-                        else
+                        // Missing or unreadable data keeps the detached clothed preset.
+                        if (data != null)
                         {
                             // NSFW off: dress only the nude slots instead of randomizing the
                             // whole character, so the player's hair/body/other clothes survive.
@@ -1660,7 +1650,8 @@ namespace CardShopCoop.Sync
             }
             catch (System.Exception e)
             {
-                CoopPlugin.Log.LogWarning("Avatar dressing failed; using a basic player marker: " + e.Message);
+                CoopPlugin.Log.LogWarning($"Avatar dressing failed; using a basic player marker: female={female}, model={av.ModelIndex}; "
+                    + $"before=[{beforeDressing}], after=[{CharacterTemplate.Describe(cust != null ? cust.m_CharacterCustom : null)}]; {e}");
                 clone.SetActive(false);
                 Object.Destroy(clone);
                 clone = new GameObject("CoopAvatarFallback");
@@ -1700,6 +1691,7 @@ namespace CardShopCoop.Sync
             foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
                 Object.DestroyImmediate(rb);
 
+            clone.SetActive(true);
             clone.name = "CoopAvatar_" + av.Name;
 
             av.Go = clone;
