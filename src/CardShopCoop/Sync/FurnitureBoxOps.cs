@@ -421,7 +421,7 @@ namespace CardShopCoop.Sync
                 {
                     rb.position = position;
                     rb.rotation = rotation;
-                    rb.velocity = Vector3.zero;
+                    rb.linearVelocity = Vector3.zero;
                     rb.angularVelocity = Vector3.zero;
                     if (!rb.isKinematic)
                         rb.WakeUp();

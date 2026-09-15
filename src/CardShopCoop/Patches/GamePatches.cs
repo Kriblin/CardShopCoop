@@ -611,7 +611,7 @@ namespace CardShopCoop.Patches
         public static void ThrowMutationPostfix(InteractablePackagingBox __instance)
         {
             // A throw is a Held -> Free release carrying the rigidbody's own velocity. The
-            // impulse is not in Rigidbody.velocity until the next FixedUpdate, so mark it and
+            // impulse is not in Rigidbody.linearVelocity until the next FixedUpdate, so mark it and
             // force a prompt box tick; the engine defers the release report until it is real.
             BoxPlacement.MarkThrow(__instance);
             CoopCore.Instance?.Boxes?.MarkBoxDirty(__instance);

@@ -66,7 +66,7 @@ namespace CardShopCoop.Sync
             = new HashSet<InteractablePackagingBox>();
 
         // A throw's impulse (vanilla ThrowBox: AddForce(forward * 450)) is not reflected in
-        // Rigidbody.velocity until the next FixedUpdate, so sampling it on the throw frame
+        // Rigidbody.linearVelocity until the next FixedUpdate, so sampling it on the throw frame
         // reads ~0. Mark the box at the throw and defer its release report until the velocity
         // is real (or a few frames have passed). One-shot per throw, not a session window.
         private static readonly Dictionary<InteractablePackagingBox, int> ThrowPending
@@ -420,7 +420,7 @@ namespace CardShopCoop.Sync
             var rb = box != null ? box.m_Rigidbody : null;
             if (rb != null)
             {
-                rb.velocity = velocity;
+                rb.linearVelocity = velocity;
                 rb.angularVelocity = angularVelocity;
                 rb.WakeUp();
             }
@@ -467,7 +467,7 @@ namespace CardShopCoop.Sync
                 var r = box.transform.rotation;
                 box.m_Rigidbody.position = p;
                 box.m_Rigidbody.rotation = r;
-                box.m_Rigidbody.velocity = Vector3.zero;
+                box.m_Rigidbody.linearVelocity = Vector3.zero;
                 box.m_Rigidbody.angularVelocity = Vector3.zero;
                 box.transform.SetPositionAndRotation(p, r);
             }
@@ -483,7 +483,7 @@ namespace CardShopCoop.Sync
             {
                 var rb = box != null ? box.m_Rigidbody : null;
                 return rb == null || rb.isKinematic || rb.IsSleeping()
-                    || rb.velocity.sqrMagnitude < 0.04f;
+                    || rb.linearVelocity.sqrMagnitude < 0.04f;
             }
             catch (System.Exception e) { Swallow.Log(e); return true; }
         }
@@ -504,7 +504,7 @@ namespace CardShopCoop.Sync
                     rb.rotation = rotation;
                     if (!rb.isKinematic)
                     {
-                        rb.velocity = Vector3.zero;
+                        rb.linearVelocity = Vector3.zero;
                         rb.angularVelocity = Vector3.zero;
                         rb.WakeUp();
                     }
