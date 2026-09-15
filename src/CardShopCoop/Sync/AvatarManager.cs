@@ -1014,20 +1014,8 @@ namespace CardShopCoop.Sync
                         }
                     }
 
-                    foreach (var mb in clone.GetComponentsInChildren<MonoBehaviour>(true))
-                    {
-                        if (mb == null)
-                            continue;
-                        string name = mb.GetType().Name;
-                        if (name == "CopyPose" || name == "BlendshapeManager" || name == "ScaleCharacter"
-                            || name == "CharacterCustomization" || name == "TransformBone" || name == "MipBiasAdjust")
-                            continue;
-                        Object.DestroyImmediate(mb);
-                    }
-                    foreach (var col in clone.GetComponentsInChildren<Collider>(true))
-                        Object.DestroyImmediate(col);
-                    foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
-                        Object.DestroyImmediate(rb);
+                    MirrorComponents.StripAvatar(clone, true,
+                        message => CoopPlugin.Log.LogWarning("Character preview cleanup: " + message));
                     if (_previewCustomization == null)
                         throw new System.InvalidOperationException("Customer prefab has no customization");
                     clone.name = "CoopCharacterPreview";
@@ -1706,30 +1694,8 @@ namespace CardShopCoop.Sync
             // Customer prefabs include held-item and FX props; avatars are visual-only.
             HideCustomerProps(cust, "remote avatar");
 
-            // Strip game logic but KEEP the cosmetic rig helpers (CC namespace): CopyPose
-            // drives hair/apparel bones every LateUpdate - destroying it is why hair froze.
-            foreach (var mb in clone.GetComponentsInChildren<MonoBehaviour>(true))
-            {
-                if (mb == null)
-                    continue;
-                string tn = mb.GetType().Name;
-                if (tn == "CopyPose" || tn == "BlendshapeManager" || tn == "ScaleCharacter"
-                    || tn == "TransformBone" || tn == "MipBiasAdjust")
-                    continue;
-                Object.DestroyImmediate(mb);
-            }
-            foreach (var comp in clone.GetComponentsInChildren<Component>(true))
-            {
-                if (comp == null)
-                    continue;
-                string n = comp.GetType().Name;
-                if (n == "NavMeshAgent" || n == "NavMeshObstacle" || n == "Seeker" || n == "FunnelModifier")
-                    Object.DestroyImmediate(comp);
-            }
-            foreach (var col in clone.GetComponentsInChildren<Collider>(true))
-                Object.DestroyImmediate(col);
-            foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
-                Object.DestroyImmediate(rb);
+            MirrorComponents.StripAvatar(clone, false,
+                message => CoopPlugin.Log.LogWarning("Remote avatar cleanup: " + message));
 
             clone.SetActive(true);
             clone.name = "CoopAvatar_" + av.Name;
