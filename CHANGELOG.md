@@ -5,6 +5,16 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 
 ---
 
+## 1.3.4
+**Appearance previews and remote players now prepare their wardrobes safely.**
+
+- Fixed preview and remote-player clones reusing an initialization flag without
+  their hair and clothing slots. Saved presets are copied before applying them.
+- Broken previews show a capsule instead of interrupting updates with repeated
+  errors. Change the appearance or close and reopen the editor to retry.
+- Failed preview clones are cleaned up; remote dressing failures retain the basic
+  player marker. Game 1.0 two-player rendering and cleanup checks remain pending.
+
 ## 1.3.3
 **Joining now loads the correct Game 1.0 shop scene.**
 

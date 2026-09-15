@@ -1,6 +1,6 @@
 # Game 1.0 compatibility checklist
 
-CardShopCoop version: **1.3.3**. Previously documented tested game version:
+CardShopCoop version: **1.3.4**. Previously documented tested game version:
 **0.70.3**. Target: **TCG Card Shop Simulator 1.0**.
 
 This checklist records a source-based assessment. Two-player runtime verification
@@ -309,3 +309,48 @@ sufficient attribution.
 
 **Exit criteria:** Platform/save claims are supported, and remaining warnings have
 an identified owner and impact or an explicit unresolved status.
+
+## M9 — Restore appearance previews and remote dressing · P1
+
+**Confirmed:** 747 identical `ArgumentOutOfRangeException` traces follow
+`CoopCore.Update → UpdatePreview → SpawnPreview → Initialize → LoadFromJSON →
+ApplyCharacterVars → setHairByName → setHair`. Remote dressing also falls back to
+a basic marker twice, for male and female models. The precise invalid list/index
+is unproven; this is a preview-path failure beyond M1's editor-template coverage.
+
+- [ ] Reproduce preview opening, preset changes, gender switches, closing/reopening,
+  and remote appearance updates with fresh and saved appearances on both peers.
+- [x] Capture initialization flags, selected preset/slot, and hair/apparel table,
+  runtime-object, and stored-data counts for preview and remote clones.
+- [x] Apply the existing detached-preset and clone-preparation protections to every
+  affected path. Preview and remote clones now initialize fresh while inactive;
+  default reapplication uses detached, normalized presets.
+- [x] Contain preview initialization/deserialization failures, destroy failed clones
+  and temporary holders, and prevent repeated attempts every update for unchanged
+  failing input. Provide a usable fallback and deliberate retry/reset behavior.
+- [x] Extend avatar regressions to preview failure cleanup and retry/reset behavior.
+- [ ] Verify in Unity that no orphan customer objects or repeated errors accumulate.
+- [ ] Verify remote dressing separately; a working capsule fallback does not establish
+  that supported appearances render correctly.
+
+**Implementation validation:** Plugin **1.3.4**, wire **103** (unchanged).
+Restore, Release build without deployment (0 errors, 91 obsolete-API warnings),
+required whitespace verification, all 69 avatar helper checks, and the metadata
+audit (358 member references, 202 hooks, 106 integration contracts) pass. The preview
+owner contains initialization, JSON parsing, and dressing failures and destroys its
+holder and child clone. A capsule replaces a failed preview. Changed appearance,
+gender, prefab, or NSFW setting, reopening the editor, and session reset allow retry.
+Remote clones use the same fresh preparation and retain a detached clothed preset
+when appearance JSON is absent or unreadable. Failure logs include selected model,
+initialization flags, and before/after slot counts.
+
+The native `Initialize`, `LoadFromJSON`, `ApplyCharacterVars`, `setHair`, and
+`Customer.RandomizeCharacterMesh` bodies were inspected. The inherited flag can skip
+runtime-slot creation; randomization also skips dressing when that flag is already
+set. These source findings explain the unsafe paths but do not identify the exact
+invalid index in the supplied log. See the expanded
+[avatar regression and runtime matrix](tests/AvatarInitialization/README.md).
+No deployment or two-player testing was performed. **M9 runtime sign-off remains pending.**
+
+**Exit criteria:** Supported presets render locally and remotely; invalid appearance
+data produces a controlled fallback without interrupting updates or leaking clones.
