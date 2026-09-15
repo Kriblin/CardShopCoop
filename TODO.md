@@ -160,7 +160,8 @@ interactions are clearly identified and safely gated.
 
 **Additional release dependency:** Resolve and verify the confirmed P0 join blocker
 in [M5](#m5--restore-scene-loading-after-save-transfer--p0) before sign-off. Triage
-M6–M8 separately; any further confirmed P0/P1 defects also block release. The automated
+M6–M8 separately; the new 1.3.3 findings in M9–M13 also require triage, with M9 and
+M11 treated as P1 release dependencies. Any further confirmed P0/P1 defects also block release. The automated
 results below remain historical evidence, not validation of the newly reported failure.
 
 - [ ] Run two-player regression tests on fresh 1.0 saves and migrated 0.70.3 saves.
@@ -309,6 +310,27 @@ sufficient attribution.
 
 **Exit criteria:** Platform/save claims are supported, and remaining warnings have
 an identified owner and impact or an explicit unresolved status.
+
+## New evidence — Supplied 1.3.3 log
+
+Reviewed `LogOutput.log` on **2026-09-15**. It records CardShopCoop **1.3.3**,
+game **1.00**, Unity **6000.0.66f2**, Windows x64, BepInEx **5.4.23.5**, and
+Configuration Manager **19.0**. BepInEx skips an older **1.3.1** copy. The same
+process first acts as a guest, then as a host; the later handshake reports both
+games as 1.00 with the same Unity version. Exact peer plugin inventory and Steam
+build IDs still need collecting. Player names, addresses, and Steam IDs are omitted.
+
+`Join world load completed in 1.25s; resuming co-op sync` and subsequent client
+state traffic provide runtime evidence that M5's scene-loading fix works in this
+session. This does not complete its fresh/migrated-save, reconnect, recovery, or
+personal-save preservation matrix. Historical M1–M5 validation above remains scoped
+to its original runs.
+
+The new failures are tracked below. Existing M6–M8 remain open: Steam errors follow
+the bridge-ready message, absent optional integrations still warn (including EPL),
+and the save-backend label still needs verification. Wrong-password rejections are
+expected authentication behavior; failed UPnP discovery alone does not prove a
+connection defect because connections subsequently succeed.
 
 ## M9 — Restore appearance previews and remote dressing · P1
 
