@@ -286,7 +286,9 @@ namespace CardShopCoop.Sync
         /// it in a finally to keep the host's notion of "current slot" from drifting to 6.</summary>
         public static byte[] BuildHostPayload()
         {
-            var gm = CSingleton<CGameManager>.Instance;
+            var gm = CGameManager.m_Instance;
+            if (gm == null)
+                throw new InvalidOperationException("The game manager is not ready for save transfer.");
             string path = SlotPath(HostSnapshotSlot);
             // delete the PREVIOUS join's snapshot first: SaveGameData silently bails on any of
             // its guards (loading error, mid scene-transition, day-report screen...), and a
@@ -456,6 +458,7 @@ namespace CardShopCoop.Sync
         public static void ApplyAndLoadAsync(byte[] saveBytes, int sessionGen,
             Action completed, Action<Exception> failed)
         {
+            ValidateWorldLoad();
             if (saveBytes == null || saveBytes.Length == 0)
                 throw new ArgumentException("Received save payload is empty", nameof(saveBytes));
 
@@ -524,7 +527,10 @@ namespace CardShopCoop.Sync
 
         private static void InjectAndForceLoad(byte[] saveBytes)
         {
-            var gm = CSingleton<CGameManager>.Instance;
+            ValidateWorldLoad();
+            var gm = CGameManager.m_Instance;
+            if (gm == null)
+                throw new InvalidOperationException("The game manager is not ready for save transfer.");
             gm.m_ForceNoCloudSaveLoad = true;
             bool injected = false;
             string json = new UTF8Encoding(false).GetString(saveBytes)
@@ -575,7 +581,10 @@ namespace CardShopCoop.Sync
         /// Approach contributed by Jburne10.</summary>
         public static void ApplyAndLoad(byte[] saveBytes)
         {
-            var gm = CSingleton<CGameManager>.Instance;
+            ValidateWorldLoad();
+            var gm = CGameManager.m_Instance;
+            if (gm == null)
+                throw new InvalidOperationException("The game manager is not ready for save transfer.");
             gm.m_ForceNoCloudSaveLoad = true; // keep Steam/Xbox cloud away from the borrowed world
 
             bool injected = false;
@@ -658,18 +667,28 @@ namespace CardShopCoop.Sync
             }
         }
 
+        public static string WorldSceneName => WorldSceneLoader.WorldSceneName;
+
+        // Check before any scratch-file, injected-save or manager-state changes.
+        // A missing scene otherwise fails inside a coroutine, after its caller returned.
+        public static void ValidateWorldLoad()
+        {
+            WorldSceneLoader.Validate();
+        }
+
         /// <summary>Drive the game's own title->shop load path for an arbitrary slot.</summary>
         public static void ForceLoadSlot(int slot)
         {
-            var gm = CSingleton<CGameManager>.Instance;
+            ValidateWorldLoad();
+            var gm = CGameManager.m_Instance;
+            if (gm == null)
+                throw new InvalidOperationException("The game manager is not ready for save transfer.");
             gm.m_CurrentSaveLoadSlotSelectedIndex = slot;
 
             // The load-on-scene-enter path only runs while m_InitLoaded is false.
-            var initLoaded = typeof(CGameManager).GetField("m_InitLoaded",
-                BindingFlags.NonPublic | BindingFlags.Static);
-            initLoaded?.SetValue(null, false);
+            WorldSceneLoader.ResetInitialization();
 
-            gm.LoadMainLevelAsync("Start", slot);
+            WorldSceneLoader.Start(gm, slot);
         }
     }
 }

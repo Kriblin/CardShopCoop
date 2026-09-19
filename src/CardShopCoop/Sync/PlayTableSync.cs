@@ -9,6 +9,8 @@ using UnityEngine;
 namespace CardShopCoop.Sync
 {
     /// <summary>
+    /// Mirrors table occupancy and the shared props of customer/host matches host->client.
+    /// The playable TCG board remains local to the host; guests cannot enter that UI.
     /// Mirrors the on-table visuals of customer card matches host->client
     /// (MsgType.TableState, host->client ONLY - there are no ops).
     ///
@@ -65,6 +67,7 @@ namespace CardShopCoop.Sync
         // every call - reapplying unchanged data would make the props jump around)
         private readonly Dictionary<int, SeatState> _applied = new Dictionary<int, SeatState>();
         private readonly Dictionary<int, bool> _occupied = new Dictionary<int, bool>();
+        private readonly Dictionary<int, bool> _playerOccupied = new Dictionary<int, bool>();
 
         // TableState remains host->client-only. The kick is a separate single-shot intent;
         // the joiner never edits the local mirror or charges money.
@@ -102,6 +105,7 @@ namespace CardShopCoop.Sync
             ClearMirrors();
             _applied.Clear();
             _occupied.Clear();
+            _playerOccupied.Clear();
             _gate.Reset(-7.6f);
             _loggedDrop = false;
             _sm = null;
@@ -123,7 +127,7 @@ namespace CardShopCoop.Sync
         private ShelfManager Sm()
         {
             if (_sm == null)
-                _sm = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+                _sm = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
             return _sm;
         }
 
@@ -157,6 +161,7 @@ namespace CardShopCoop.Sync
                     if (table == null)
                         continue;
                     hash = hash * 31 + (table.GetCurrentPlayerCount() > 0 ? 1 : 0);
+                    hash = hash * 31 + (TcgAuthority.PlayerAtTable(table) ? 1 : 0);
                     var sets = table.m_TableGameItemSetList;
                     int seats = sets != null ? Mathf.Min(sets.Count, MaxSeats) : 0;
                     for (int s = 0; s < seats; s++)
@@ -202,7 +207,8 @@ namespace CardShopCoop.Sync
                 // fixed format: 2 + seats*(1|13) bytes - a vanilla 2-seat table is at
                 // most 28 bytes, far under the MaxTableBytes budget by construction
                 var entry = new TableEntry { Index = (byte)i };
-                entry.Occupied = table != null && table.GetCurrentPlayerCount() > 0;
+                entry.PlayerOccupied = TcgAuthority.PlayerAtTable(table);
+                entry.Occupied = entry.PlayerOccupied || (table != null && table.GetCurrentPlayerCount() > 0);
                 for (int s = 0; s < seats; s++)
                 {
                     var st = HostSeat(sets[s]);
@@ -240,6 +246,7 @@ namespace CardShopCoop.Sync
                 var entry = message.Tables[i];
                 int tableIdx = entry.Index;
                 _occupied[tableIdx] = entry.Occupied;
+                _playerOccupied[tableIdx] = entry.PlayerOccupied;
                 var seats = entry.Seats;
                 InteractablePlayTable table =
                     (tables != null && tableIdx < tables.Count) ? tables[tableIdx] : null;
@@ -270,6 +277,8 @@ namespace CardShopCoop.Sync
 
         public static bool StartMoveObjectPrefix(InteractablePlayTable __instance)
         {
+            if (!TcgAuthority.ProtectTable(__instance))
+                return false;
             if (CoopCore.Role != CoopRole.Client || __instance == null)
                 return true;
             if (__instance.GetHasStartPlayerPlayCard())
@@ -287,6 +296,13 @@ namespace CardShopCoop.Sync
                 }
             }
             return true;
+        }
+
+        internal bool IsPlayerOccupied(InteractablePlayTable table)
+        {
+            var sm = Sm();
+            int index = sm != null && sm.m_PlayTableList != null ? sm.m_PlayTableList.IndexOf(table) : -1;
+            return index >= 0 && _playerOccupied.TryGetValue(index, out var occupied) && occupied;
         }
 
         private bool IsOccupied(InteractablePlayTable table)
@@ -307,7 +323,7 @@ namespace CardShopCoop.Sync
             if (sm == null || sm.m_PlayTableList == null || message.Target >= sm.m_PlayTableList.Count)
                 return;
             var table = sm.m_PlayTableList[message.Target];
-            if (table == null || table.GetIsTournamentPlayTable() || table.GetCurrentPlayerCount() <= 0)
+            if (table == null || TcgAuthority.PlayerAtTable(table) || table.GetIsTournamentPlayTable() || table.GetCurrentPlayerCount() <= 0)
                 return;
             if (StopTableGame == null)
             {
@@ -366,7 +382,7 @@ namespace CardShopCoop.Sync
         {
             if (_applied.Count == 0)
                 return;
-            var sm = _sm; // cached only - never FindObjectOfType during teardown
+            var sm = _sm; // cached only - never FindFirstObjectByType during teardown
             var tables = sm != null ? sm.m_PlayTableList : null;
             if (tables != null)
             {

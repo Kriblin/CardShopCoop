@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../src/CardShopCoop/Sync/TcgPlayerState.cs" Link="TcgPlayerState.cs" />
+    <Compile Include="../../src/CardShopCoop/Sync/TcgAuthority.cs" Link="TcgAuthority.cs" />
+    <Compile Include="../../src/CardShopCoop/Sync/BattleCompletion.cs" Link="BattleCompletion.cs" />
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(GamePath)/Card Shop Simulator_Data/Managed/Newtonsoft.Json.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>

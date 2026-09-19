@@ -40,6 +40,20 @@ Most of the 1.2.0 update is [Meepen](https://github.com/meepen)'s work. Thanks f
 - **Joiners risk nothing**: the joiner receives the host's save at join, plays in a
   dedicated scratch slot, and never writes their own saves.
 
+## Game 1.0 compatibility status
+
+Version **1.3.2** targets game **1.0**. Automated checks use Steam build **25304508**;
+two-player gameplay validation is still pending. The previously documented tested
+game version is **0.70.3**. See [TODO.md](TODO.md) for the remaining sign-off checks.
+
+Deck editing, customer battles, and player tournament participation are **host-only**.
+Guests receive deck/tournament progress and table occupancy, and can run the shop or
+read the rulebook. Independent guest battles and the live playable battle board are
+unsupported. Battle gifts belong to the host's hand; placing/opening them uses the
+existing shared item/card paths. Optional mod combinations and fresh/migrated-save
+behavior still need game 1.0 multiplayer testing. Both players must use the identical
+plugin version and mod set.
+
 ## Install
 
 1. Install [BepInEx 5](https://github.com/BepInEx/BepInEx) (5.4.23 x64) into the game
@@ -65,7 +79,9 @@ Most of the 1.2.0 update is [Meepen](https://github.com/meepen)'s work. Thanks f
 - `tools/Decomp/` — regenerates the decompiled game-assembly reference locally
   (ILSpy; the output is not part of this repo).
 - `tools/Launcher/` — the auto-updating launcher.
-- `tests/ShelfBoxPull/` — regression checks for shelf-to-box inventory transfers.
+- `tests/` — helper regression harnesses and the installed-game metadata audit.
+- `tools/validate_compatibility.py` — runs local compatibility checks and optionally
+  prepares an unverified candidate ZIP; see [contributor instructions](CONTRIBUTING.md#checks-before-a-pull-request).
 - `.github/workflows/lint.yml` — checks C# formatting on pushes and pull requests.
 - `CHANGELOG.md` — release changes. Release ZIPs are kept locally in the ignored
   `dist/release/` folder.

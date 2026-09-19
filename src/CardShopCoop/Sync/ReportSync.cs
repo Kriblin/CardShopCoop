@@ -306,6 +306,7 @@ namespace CardShopCoop.Sync
             h = h * 31 + r.smellyCustomerCleaned;
             h = h * 31 + r.manualCheckoutCount;
             h = h * 31 + r.gemMintCardObtained;
+            h = h * 31 + r.duelWinCount;
             h = h * 31 + CPlayerData.m_CustomerReviewCount;
             return h;
         }
@@ -338,6 +339,7 @@ namespace CardShopCoop.Sync
                 SmellyCustomerCleaned = r.smellyCustomerCleaned,
                 ManualCheckoutCount = r.manualCheckoutCount,
                 GemMintCardObtained = r.gemMintCardObtained,
+                DuelWinCount = r.duelWinCount,
             };
 
             // reviews: lifetime count doubles as a sequence number, so the client can
@@ -405,6 +407,7 @@ namespace CardShopCoop.Sync
             r.smellyCustomerCleaned = message.SmellyCustomerCleaned;
             r.manualCheckoutCount = message.ManualCheckoutCount;
             r.gemMintCardObtained = message.GemMintCardObtained;
+            r.duelWinCount = message.DuelWinCount;
             // host truth replaces the joiner's near-zero local counters (his own pack
             // opens etc. are folded into the host numbers only where the host saw them;
             // m_GameReportDataCollectPermanent stays local so achievements keep their
@@ -460,14 +463,14 @@ namespace CardShopCoop.Sync
                 // a REAL screen in the scene means the vanilla statics below resolve
                 // it too; without one they would auto-create a fake (see class fields)
                 if (_screen == null)
-                    _screen = UnityEngine.Object.FindObjectOfType<EndOfDayReportScreen>();
+                    _screen = UnityEngine.Object.FindFirstObjectByType<EndOfDayReportScreen>();
                 if (_screen == null)
                     return;
                 if (EndOfDayReportScreen.IsActive())
                     return; // OpenScreen is a toggle: don't close it
 
                 if (_ipc == null)
-                    _ipc = UnityEngine.Object.FindObjectOfType<InteractionPlayerController>();
+                    _ipc = UnityEngine.Object.FindFirstObjectByType<InteractionPlayerController>();
                 var pc = _ipc;
                 if (pc != null)
                 {
@@ -536,7 +539,7 @@ namespace CardShopCoop.Sync
                 // REAL screen exists in the scene, or CSingleton fabricates a fake one
                 // that shadows the real screen for the rest of the run
                 if (_screen == null)
-                    _screen = UnityEngine.Object.FindObjectOfType<EndOfDayReportScreen>();
+                    _screen = UnityEngine.Object.FindFirstObjectByType<EndOfDayReportScreen>();
                 if (_screen == null)
                     return;
                 if (!EndOfDayReportScreen.IsActive())

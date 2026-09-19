@@ -5,6 +5,87 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 
 ---
 
+## 1.3.6
+**NPCs are dressed again for the joining player.**
+
+- Fixed customer and worker mirrors appearing without clothes because Game 1.0 could
+  not bind wardrobe renderers while their visual hierarchy was inactive. Mirrors now prepare
+  their movement and physics safely before activation, then apply the host's outfit
+  after the cosmetic hierarchy is available.
+- Fixed builds failing when the installed game no longer exposes
+  `CGameManager.k_StartSceneName`. Joining now detects the current `Start` shop scene
+  while retaining compatibility with builds that use `StartOptimized`.
+- Game 1.0 two-player rendering and worker appearance mods still need in-game verification.
+
+## 1.3.5
+**Player and NPC mirrors now prepare their movement components safely.**
+
+- Fixed preview and remote-player cleanup attempting to remove a pathfinding
+  component while another component still required it.
+- Customer and worker mirrors now finish preparation before becoming active.
+  Their local navigation stays disabled, while cosmetic animation and worker
+  interaction controls remain available.
+- Unity cleanup, worker interactions, and two-player movement still need in-game
+  verification, including supported worker appearance mods.
+
+## 1.3.4
+**Appearance previews and remote players now prepare their wardrobes safely.**
+
+- Fixed preview and remote-player clones reusing an initialization flag without
+  their hair and clothing slots. Saved presets are copied before applying them.
+- Broken previews show a capsule instead of interrupting updates with repeated
+  errors. Change the appearance or close and reopen the editor to retry.
+- Failed preview clones are cleaned up; remote dressing failures retain the basic
+  player marker. Game 1.0 two-player rendering and cleanup checks remain pending.
+
+## 1.3.3
+**Joining now loads the correct Game 1.0 shop scene.**
+
+- Fixed joining stopping after the host's save arrived because the old startup
+  scene no longer exists. Automatic hosting uses the corrected scene too.
+- Missing scenes are detected before applying the received world. Failed loads and
+  loads taking more than three minutes end the session with an error and attempt
+  to return to the title screen. If Unity stays stuck loading, restart the game.
+- Guest-save protection stays active during recovery, including a scene load that
+  finishes after disconnection. Both players need the same plugin version.
+- Game 1.0 two-player verification, including fresh and migrated saves, remains pending.
+
+## 1.3.2
+**Key prompts keep their correct labels instead of showing “F” and “Action Name”.**
+
+- Fixed an early startup check that could replace the game's configured manager with
+  an empty one, leaving HUD and settings key labels stuck on their placeholders.
+  Your actual key bindings are unchanged.
+- Restart the game after updating to reload its original UI assets. Game 1.0
+  two-player validation remains pending.
+
+## 1.3.1
+**Game 1.0 deck and tournament progress now follows the host.**
+
+- Deck editing, customer battles, and tournament participation are host-only. Guests
+  can keep running the shop and reading the rulebook; unsupported TCG actions show a message.
+- Decks, selected deck, player tournament results, and daily duel counts follow the
+  host. The pairing board includes the host's tournament entry.
+- Guests cannot move, box up, or kick customers from a table during the host's battle.
+  Repeated battle completion callbacks no longer grant another set of gifts.
+- Battle gifts belong to the host's hand and use ordinary shared item/card updates
+  when placed or opened. Independent guest battles and the live battle board are not supported.
+- Game 1.0 two-player validation is still pending; this is not a completed runtime sign-off.
+
+**Both players must update.**
+
+## 1.3.0
+**Ascension card prices now follow the host during co-op.**
+
+- Fixed: the new Ascension expansion was missing from full market updates, so guest
+  prices could remain at zero or disagree with the host after joining or reconnecting.
+  Ascension now receives the host's base prices and market changes like the other expansions.
+- Customer mirrors now prepare their appearance safely before activation and apply the
+  host's selected preset, including returning tournament customers.
+- Game 1.0 compatibility work is in progress; two-player validation is still pending.
+
+**Both players must update.**
+
 ## 1.2.0
 **Boxes and furniture now stay in sync through pickups, throws, placement, and joining, cards no longer vanish when a guest sets them out to sell or is holding them, and registers, workers, and served customers no longer get stuck or vanish during co-op.**
 

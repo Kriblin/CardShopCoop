@@ -52,8 +52,8 @@ namespace CardShopCoop.Net.Messages
     // ------------------------------------------------------------------ Market
 
     /// <summary>Host -> clients: the one shared market (item/card percent changes,
-    /// generated bases, game-event price rows). Field order is the exact byte order
-    /// written by MarketSync.WriteState / read by MarketSync.ClientApplyState.</summary>
+    /// generated bases, game-event price rows). Serialized by WireCodec and applied by
+    /// MarketSync.ClientApplyState.</summary>
     [NetworkMessage(MsgType.MarketState, Policy = MessagePolicy.ClientOnly)]
     public sealed class MarketStateMessage : INetMessage
     {
@@ -66,6 +66,7 @@ namespace CardShopCoop.Net.Messages
         public List<MarketCardEntry> GenCardMarketPriceListMegabot = new List<MarketCardEntry>();
         public List<MarketCardEntry> GenCardMarketPriceListFantasyRPG = new List<MarketCardEntry>();
         public List<MarketCardEntry> GenCardMarketPriceListCatJob = new List<MarketCardEntry>();
+        public List<MarketCardEntry> GenCardMarketPriceListAscension = new List<MarketCardEntry>();
         // Card market multiplier table (GetMarketPrice reads it for GRADED cards). Generated
         // locally with Unity Random on the client by RestockManager.Init, so it must be
         // overwritten by the host's copy or graded binder prices diverge.
@@ -93,13 +94,6 @@ namespace CardShopCoop.Net.Messages
     {
         public EItemType ItemType;
         public short Percent; // already x100, clamped to [short.MinValue, short.MaxValue]
-    }
-
-    /// <summary>One per-expansion card market row: short percent (x100) + full float base.</summary>
-    public sealed class MarketCardEntry
-    {
-        public short Percent;
-        public float GeneratedMarketPrice;
     }
 
     /// <summary>One modded-expansion card market change. The host hooks the
@@ -155,6 +149,7 @@ namespace CardShopCoop.Net.Messages
         public int SmellyCustomerCleaned;
         public int ManualCheckoutCount;
         public int GemMintCardObtained;
+        public int DuelWinCount;
         public int ReviewCount;        // lifetime m_CustomerReviewCount (sequence number)
         public float ReviewScoreAverage;
         public List<ReportReviewEntry> Reviews = new List<ReportReviewEntry>();
@@ -192,6 +187,7 @@ namespace CardShopCoop.Net.Messages
     [NetworkMessage(MsgType.TournamentState, Policy = MessagePolicy.ClientOnly)]
     public sealed class TournamentStateMessage : INetMessage
     {
+        public CardShopCoop.Sync.TcgPlayerState Player = new CardShopCoop.Sync.TcgPlayerState();
         public byte Flags; // bit0 IsHostingTournament, bit1 IsTournamentDay, bit2 IsTournamentDayOver
         public int MaxPlayerCount;
         public int SignedUpCustomerCount;
@@ -266,6 +262,7 @@ namespace CardShopCoop.Net.Messages
     {
         public byte Index;
         public bool Occupied;
+        public bool PlayerOccupied;
         public List<TableSeatEntry> Seats = new List<TableSeatEntry>();
     }
 

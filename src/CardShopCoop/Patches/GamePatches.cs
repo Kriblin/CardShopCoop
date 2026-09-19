@@ -611,7 +611,7 @@ namespace CardShopCoop.Patches
         public static void ThrowMutationPostfix(InteractablePackagingBox __instance)
         {
             // A throw is a Held -> Free release carrying the rigidbody's own velocity. The
-            // impulse is not in Rigidbody.velocity until the next FixedUpdate, so mark it and
+            // impulse is not in Rigidbody.linearVelocity until the next FixedUpdate, so mark it and
             // force a prompt box tick; the engine defers the release report until it is real.
             BoxPlacement.MarkThrow(__instance);
             CoopCore.Instance?.Boxes?.MarkBoxDirty(__instance);
@@ -766,7 +766,7 @@ namespace CardShopCoop.Patches
         /// also had at 0, so returning false leaves m_GenCardMarketPriceList as the join-time
         /// save transfer wrote it (the host's real bases).
         ///
-        /// But that transfer can fail to land: CGameData.PropagateLoadData restores all seven
+        /// But that transfer can fail to land: CGameData.PropagateLoadData restores the original seven
         /// card price tables behind ONE gate (decompiled/CGameData.cs:758-773), so when that gate
         /// reads false every base in every table stays 0. Vanilla's own repair is this very
         /// method (it fills only indices still at zero, decompiled/RestockManager.cs:237), so
@@ -779,7 +779,7 @@ namespace CardShopCoop.Patches
         /// per expansion and each call writes only its OWN list
         /// (CPlayerData.SetCardGeneratedMarketPrice, decompiled/CPlayerData.cs:1157-1186).
         /// Testing one table for all of them would let the first call's fresh rolls read as
-        /// "the host's bases arrived" and block the other five.</summary>
+        /// "the host's bases arrived" and block the other expansions.</summary>
         public static bool GenerateCardMarketPriceBlockPrefix(ECardExpansionType expansionType)
         {
             if (CoopCore.Role != CoopRole.Client)
@@ -788,28 +788,31 @@ namespace CardShopCoop.Patches
             switch (expansionType)
             {
                 case ECardExpansionType.Tetramon:
-                    landed = AnyCardBase(CPlayerData.m_GenCardMarketPriceList);
+                    landed = CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceList);
                     break;
                 case ECardExpansionType.Destiny:
-                    landed = AnyCardBase(CPlayerData.m_GenCardMarketPriceListDestiny);
+                    landed = CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceListDestiny);
                     break;
                 // one Ghost call fills BOTH halves - it doubles its range and splits them with
                 // isDestiny (RestockManager.cs:214-226 -> CPlayerData.cs:1167-1175) - and the
                 // load gate restores the pair together, so either one filled means both landed
                 case ECardExpansionType.Ghost:
-                    landed = AnyCardBase(CPlayerData.m_GenCardMarketPriceListGhost)
-                                                     || AnyCardBase(CPlayerData.m_GenCardMarketPriceListGhostBlack);
+                    landed = CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceListGhost)
+                                                     || CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceListGhostBlack);
                     break;
                 case ECardExpansionType.Megabot:
-                    landed = AnyCardBase(CPlayerData.m_GenCardMarketPriceListMegabot);
+                    landed = CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceListMegabot);
                     break;
                 case ECardExpansionType.FantasyRPG:
-                    landed = AnyCardBase(CPlayerData.m_GenCardMarketPriceListFantasyRPG);
+                    landed = CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceListFantasyRPG);
                     break;
                 case ECardExpansionType.CatJob:
-                    landed = AnyCardBase(CPlayerData.m_GenCardMarketPriceListCatJob);
+                    landed = CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceListCatJob);
                     break;
-                // An expansion we can't name has no table among MarketSync's seven either, so a
+                case ECardExpansionType.Ascension:
+                    landed = CardMarketTable.HasBase(CPlayerData.m_GenCardMarketPriceListAscension);
+                    break;
+                // An expansion we can't name has no dense table in MarketSync either, so a
                 // local roll into it could never be corrected by the host's snapshot. Keep
                 // blocking: visible $0.00 beats prices that silently disagree with the host.
                 default:
@@ -823,20 +826,6 @@ namespace CardShopCoop.Patches
                 CoopPlugin.Log.LogWarning("card base prices did not arrive with the join world (every generatedMarketPrice is 0) - letting vanilla roll local bases so cards aren't $0.00; MarketSync's next snapshot replaces them with the host's");
             }
             return true;
-        }
-
-        /// <summary>Any non-zero base means the join world's card price block landed for this
-        /// table: vanilla never rolls a base of 0 (RestockManager.cs:314 always passes a
-        /// positive multiplier), so 0 everywhere can only be the untouched initial state
-        /// (CPlayerData.cs:563-565 seeds the lists with blank MarketPrice objects).</summary>
-        private static bool AnyCardBase(System.Collections.Generic.List<MarketPrice> list)
-        {
-            if (list == null)
-                return false;
-            for (int i = 0; i < list.Count; i++)
-                if (list[i] != null && list[i].generatedMarketPrice != 0f)
-                    return true;
-            return false;
         }
 
         /// <summary>Skip the move-preview teardown when there's no preview to tear down
@@ -1005,7 +994,7 @@ namespace CardShopCoop.Patches
             try
             {
                 if (_sprayIpc == null)
-                    _sprayIpc = UnityEngine.Object.FindObjectOfType<InteractionPlayerController>();
+                    _sprayIpc = UnityEngine.Object.FindFirstObjectByType<InteractionPlayerController>();
                 var ipc = _sprayIpc;
                 bool handheld = ipc != null
                     && FiHoldSprayItem?.GetValue(ipc) != null

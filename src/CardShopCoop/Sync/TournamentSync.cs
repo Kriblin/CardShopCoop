@@ -1,4 +1,5 @@
 using System;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -10,7 +11,8 @@ using CardShopCoop.Net.Messages;
 namespace CardShopCoop.Sync
 {
     /// <summary>
-    /// Mirrors tournament DATA and scheduling host->client (MsgType.TournamentState).
+    /// Mirrors tournament data and the shared player's decks host->client (MsgType.TournamentState).
+    /// TCG interactions are host-only (TcgAuthority); snapshots never replay rewards or card transfers.
     /// The customer bracket only exists in the host simulation, so the joiner gets
     /// CPlayerData.m_TournamentData (schedule, fee, sign-ups, round, prize catalog)
     /// plus a per-customer digest of CustomerTournamentData - enough for the phone
@@ -52,7 +54,7 @@ namespace CardShopCoop.Sync
         private static CustomerManager Cm()
         {
             if (_cm == null)
-                _cm = UnityEngine.Object.FindObjectOfType<CustomerManager>();
+                _cm = UnityEngine.Object.FindFirstObjectByType<CustomerManager>();
             return _cm;
         }
 
@@ -141,10 +143,10 @@ namespace CardShopCoop.Sync
                 var td = CPlayerData.m_TournamentData;
                 if (td == null)
                     return;
-                int hash = ComputeHash(td);
-                if (!_gate.ShouldSend(hash))
+                var message = BuildState(td);
+                if (!_gate.ShouldSend(JsonConvert.SerializeObject(message).GetHashCode()))
                     return;
-                BroadcastState?.Invoke(BuildState(td));
+                BroadcastState?.Invoke(message);
             });
         }
 
@@ -165,6 +167,7 @@ namespace CardShopCoop.Sync
 
         private void ClientApplyInner(TournamentStateMessage message)
         {
+            message.Player.Apply();
             var td = CPlayerData.m_TournamentData;
             if (td == null)
             {
@@ -173,8 +176,6 @@ namespace CardShopCoop.Sync
 
             byte flags = message.Flags;
             td.m_IsHostingTournament = (flags & 1) != 0;
-            bool wasDay = td.m_IsTournamentDay;
-            bool wasOver = td.m_IsTournamentDayOver;
             td.m_IsTournamentDay = (flags & 2) != 0;
             td.m_IsTournamentDayOver = (flags & 4) != 0;
             td.m_TournamentMaxPlayerCount = message.MaxPlayerCount;
@@ -237,57 +238,48 @@ namespace CardShopCoop.Sync
 
             // the heal broadcast repeats unchanged state every 15s; skip the UI churn
             // (ShowPairingScreen resets every panel) when nothing actually moved
-            int hash = ComputeHash(td);
-            for (int i = 0; i < digest.Count; i++)
-            {
-                var e = digest[i];
-                hash = hash * 31 + e.SortedIndex;
-                hash = hash * 31 + e.ModelIndex;
-                hash = hash * 31 + ((e.IsFemale ? 1 : 0) | (e.IsWin ? 2 : 0) | (e.HasResult ? 4 : 0));
-                hash = hash * 31 + e.WinCount;
-                hash = hash * 31 + e.WinPoints;
-                hash = hash * 31 + e.OMW;
-                hash = hash * 31 + e.OOMW;
-            }
+            int hash = JsonConvert.SerializeObject(message).GetHashCode();
             if (hash == _clientHash)
                 return;
-            _clientHash = hash;
-
-            RefreshBoards(td, digest, wasDay != td.m_IsTournamentDay || wasOver != td.m_IsTournamentDayOver);
+            // A join snapshot may arrive before the board exists. Keep retrying the
+            // same payload on heal until the scene can actually display it.
+            if (RefreshBoards(td, digest))
+                _clientHash = hash;
         }
 
         /// <summary>Client: the pairing board and shelf screen mesh are normally driven
         /// by day-start events, which the mod suppresses on the joiner - so we gate them
         /// here, exactly the way TournamentPrizeShelf.CheckTournamentScreenVisibility does.</summary>
-        private void RefreshBoards(TournamentData td, List<PairingEntry> digest, bool visibilityChanged)
+        private bool RefreshBoards(TournamentData td, List<PairingEntry> digest)
         {
             var cm = Cm();
             if (cm == null || cm.m_TournamentPairingScreen == null)
-                return;
+                return false;
             var screen = cm.m_TournamentPairingScreen;
             bool showBoard = td.m_IsTournamentDay || td.m_IsTournamentDayOver;
 
-            if (visibilityChanged)
+            try
             {
-                try
+                screen.gameObject.SetActive(showBoard);
+                var shelves = ShelfManager.GetTournamentPrizeShelfList();
+                for (int i = 0; i < shelves.Count; i++)
                 {
-                    screen.gameObject.SetActive(showBoard);
-                    var shelves = ShelfManager.GetTournamentPrizeShelfList();
-                    for (int i = 0; i < shelves.Count; i++)
-                    {
-                        if (shelves[i] == null || FiScreenMesh == null)
-                            continue;
-                        var mesh = FiScreenMesh.GetValue(shelves[i]) as GameObject;
-                        if (mesh != null)
-                            mesh.SetActive(showBoard);
-                    }
+                    if (shelves[i] == null || FiScreenMesh == null)
+                        continue;
+                    var mesh = FiScreenMesh.GetValue(shelves[i]) as GameObject;
+                    if (mesh != null)
+                        mesh.SetActive(showBoard);
                 }
-                catch (Exception e) { CoopPlugin.Log.LogWarning("TournamentSync board vis: " + e.Message); }
+            }
+            catch (Exception e)
+            {
+                CoopPlugin.Log.LogWarning("TournamentSync board vis: " + e.Message);
+                return false;
             }
             if (!showBoard)
             {
                 screen.ShowPairingScreen(isShow: false, 0);
-                return;
+                return true;
             }
 
             // full repaint: ShowPairingScreen resets the panels, then we repopulate from
@@ -295,6 +287,8 @@ namespace CardShopCoop.Sync
             // reads the scalar fields we carry
             screen.ShowPairingScreen(isShow: true, td.m_TournamentMaxPlayerCount);
             screen.UpdateCurrentRound(td.m_TournamentCurrentRound, td.m_TournamentMaxRound);
+            if (td.m_IsTournamentDayOver)
+                screen.OnTournamentEnded();
             int panels = screen.m_TournamentPairingUIGrpList != null ? screen.m_TournamentPairingUIGrpList.Count : 0;
             for (int i = 0; i < digest.Count; i++)
             {
@@ -314,6 +308,7 @@ namespace CardShopCoop.Sync
                 };
                 screen.m_TournamentPairingUIGrpList[e.SortedIndex / 2].UpdateCustomerData(ctd);
             }
+            return true;
         }
 
         private struct PairingEntry
@@ -335,6 +330,7 @@ namespace CardShopCoop.Sync
         {
             var msg = new TournamentStateMessage
             {
+                Player = TcgPlayerState.Capture(),
                 Flags = (byte)((td.m_IsHostingTournament ? 1 : 0)
                              | (td.m_IsTournamentDay ? 2 : 0)
                              | (td.m_IsTournamentDayOver ? 4 : 0)),
@@ -379,17 +375,16 @@ namespace CardShopCoop.Sync
             for (int i = 0; i < n; i++)
             {
                 var c = sorted[i];
-                var ctd = c != null ? c.GetCustomerTournamentData() : null;
+                var ctd = c != null ? c.GetCustomerTournamentData() : TcgPlayerState.PlayerBracket(i);
                 if (ctd == null)
                 {
-                    msg.Bracket.Add(new TournamentBracketEntry());
                     continue;
                 }
                 msg.Bracket.Add(new TournamentBracketEntry
                 {
                     SortedIndex = (byte)Mathf.Clamp(ctd.m_TournamentCustomerSortedIndex, 0, 255),
-                    ModelIndex = c.GetCustomerModelIndex(),
-                    Flags = (byte)((c.m_IsFemale ? 1 : 0)
+                    ModelIndex = c != null ? c.GetCustomerModelIndex() : -1,
+                    Flags = (byte)(((c != null && c.m_IsFemale) ? 1 : 0)
                                  | (ctd.m_IsTournamentWin ? 2 : 0)
                                  | (ctd.m_HasRegisteredTournamentResult ? 4 : 0)),
                     WinCount = ctd.m_TournamentWinCount,
@@ -401,71 +396,5 @@ namespace CardShopCoop.Sync
             return msg;
         }
 
-        /// <summary>Change detector over everything BuildState sends. The host also folds
-        /// in the live bracket; the client re-derives the same shape from the payload.</summary>
-        private static int ComputeHash(TournamentData td)
-        {
-            int hash = 17;
-            hash = hash * 31 + ((td.m_IsHostingTournament ? 1 : 0)
-                              | (td.m_IsTournamentDay ? 2 : 0)
-                              | (td.m_IsTournamentDayOver ? 4 : 0));
-            hash = hash * 31 + td.m_TournamentMaxPlayerCount;
-            hash = hash * 31 + td.m_TournamentSignedUpCustomerCount;
-            hash = hash * 31 + td.m_TournamentFinishedCurrentRoundCustomerCount;
-            hash = hash * 31 + td.m_TournamentCurrentRound;
-            hash = hash * 31 + td.m_TournamentMaxRound;
-            hash = hash * 31 + (int)(td.m_TournamentFee * 100f);
-            hash = hash * 31 + (int)(td.m_TournamentTotalValue * 100f);
-            var lists = td.m_PrizeDataList;
-            if (lists != null)
-            {
-                for (int i = 0; i < lists.Count; i++)
-                {
-                    var inner = lists[i] != null ? lists[i].m_PrizeDataList : null;
-                    if (inner == null)
-                        continue;
-                    for (int j = 0; j < inner.Count; j++)
-                    {
-                        var p = inner[j];
-                        if (p == null)
-                            continue;
-                        hash = hash * 31 + (int)p.m_ItemType;
-                        hash = hash * 31 + p.m_Count;
-                        if (p.m_CardData != null)
-                        {
-                            hash = hash * 31 + (int)p.m_CardData.expansionType;
-                            hash = hash * 31 + (int)p.m_CardData.monsterType;
-                            hash = hash * 31 + (int)p.m_CardData.borderType;
-                            hash = hash * 31 + ((p.m_CardData.isFoil ? 1 : 0) | (p.m_CardData.isDestiny ? 2 : 0));
-                        }
-                    }
-                }
-            }
-            // host side only: fold the live bracket so round results retrigger a send
-            if (CoopCore.Role == CoopRole.Host)
-            {
-                var cm = Cm();
-                var sorted = cm != null ? cm.m_TournamentSortedCustomerList : null;
-                if (sorted != null)
-                {
-                    for (int i = 0; i < sorted.Count; i++)
-                    {
-                        var ctd = sorted[i] != null ? sorted[i].GetCustomerTournamentData() : null;
-                        if (ctd == null)
-                            continue;
-                        hash = hash * 31 + ctd.m_TournamentCustomerSortedIndex;
-                        hash = hash * 31 + (sorted[i] != null ? sorted[i].GetCustomerModelIndex() : 0);
-                        hash = hash * 31 + (((sorted[i] != null && sorted[i].m_IsFemale) ? 1 : 0)
-                                          | (ctd.m_IsTournamentWin ? 2 : 0)
-                                          | (ctd.m_HasRegisteredTournamentResult ? 4 : 0));
-                        hash = hash * 31 + ctd.m_TournamentWinCount;
-                        hash = hash * 31 + ctd.m_TournamentWinPoints;
-                        hash = hash * 31 + ctd.m_TournamentOMW;
-                        hash = hash * 31 + ctd.m_TournamentOOMW;
-                    }
-                }
-            }
-            return hash;
-        }
     }
 }

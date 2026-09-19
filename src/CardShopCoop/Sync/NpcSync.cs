@@ -182,7 +182,7 @@ namespace CardShopCoop.Sync
                 _sendTimer = SendInterval; // clamp debt after a hitch
 
             if (_cm == null)
-                _cm = Object.FindObjectOfType<CustomerManager>();
+                _cm = Object.FindFirstObjectByType<CustomerManager>();
             if (_cm == null)
                 return null;
 
@@ -452,7 +452,7 @@ namespace CardShopCoop.Sync
             _live.ReleaseWorkerBoxProp(p);
             try
             {
-                var rm = Object.FindObjectOfType<RestockManager>();
+                var rm = Object.FindFirstObjectByType<RestockManager>();
                 var prefab = isBig ? rm?.m_PackageBoxPrefab : rm?.m_PackageBoxSmallPrefab;
                 if (prefab == null || p.HoldBox == null)
                     return;
@@ -559,7 +559,7 @@ namespace CardShopCoop.Sync
         private static InventoryBase Inv()
         {
             if (_inv == null)
-                _inv = Object.FindObjectOfType<InventoryBase>();
+                _inv = Object.FindFirstObjectByType<InventoryBase>();
             return _inv;
         }
 
@@ -667,7 +667,7 @@ namespace CardShopCoop.Sync
         {
             // cached across calls; Unity's overloaded == re-resolves after scene changes
             if (s_diagCm == null)
-                s_diagCm = Object.FindObjectOfType<CustomerManager>();
+                s_diagCm = Object.FindFirstObjectByType<CustomerManager>();
             int n = 0;
             if (s_diagCm != null)
             {
@@ -689,7 +689,7 @@ namespace CardShopCoop.Sync
         public static int CountUnexpectedActiveNpcs()
         {
             if (s_diagCm == null)
-                s_diagCm = Object.FindObjectOfType<CustomerManager>();
+                s_diagCm = Object.FindFirstObjectByType<CustomerManager>();
             int n = 0;
             if (s_diagCm != null)
             {
@@ -731,7 +731,7 @@ namespace CardShopCoop.Sync
             if (_live == null || customer == null)
                 return 0;
             if (_live._cm == null)
-                _live._cm = Object.FindObjectOfType<CustomerManager>();
+                _live._cm = Object.FindFirstObjectByType<CustomerManager>();
             var list = _live._cm != null ? _live._cm.GetCustomerList() : null;
             if (list == null)
                 return 0;
@@ -761,7 +761,7 @@ namespace CardShopCoop.Sync
             if (_live == null || transform == null)
                 return false;
             if (_live._cm == null)
-                _live._cm = Object.FindObjectOfType<CustomerManager>();
+                _live._cm = Object.FindFirstObjectByType<CustomerManager>();
             var list = _live._cm != null ? _live._cm.GetCustomerList() : null;
             if (list == null)
                 return false;
@@ -1132,8 +1132,8 @@ namespace CardShopCoop.Sync
         }
 
         /// <summary>On a wardrobe change, re-dress the existing clone in place via the
-        /// game's own Initialize() (m_HasInit routes to LoadFromJSON, which re-applies
-        /// hair/apparel for the new name). Full respawn only when there is no clone yet
+        /// a detached, normalized preset for customers; workers retain their own initialization.
+        /// Full respawn only when there is no clone yet
         /// or the male/female prefab no longer matches.</summary>
         private void ReDress(Puppet p, string charName, Vector3 pos, bool femaleHint, byte kind, ushort index)
         {
@@ -1154,7 +1154,10 @@ namespace CardShopCoop.Sync
             try
             {
                 p.Custom.CharacterName = charName;
-                p.Custom.Initialize();
+                if (kind == KindCustomer)
+                    CharacterTemplate.ApplyDefault(p.Custom, charName);
+                else
+                    p.Custom.Initialize();
             }
             catch (System.Exception e)
             {
@@ -1425,7 +1428,7 @@ namespace CardShopCoop.Sync
             if (kind == KindWorker)
             {
                 if (_wmClient == null)
-                    _wmClient = Object.FindObjectOfType<WorkerManager>();
+                    _wmClient = Object.FindFirstObjectByType<WorkerManager>();
                 if (_wmClient == null)
                     return;
                 var workers = WorkerManager.GetWorkerList();
@@ -1449,7 +1452,7 @@ namespace CardShopCoop.Sync
             else
             {
                 if (_cmClient == null)
-                    _cmClient = Object.FindObjectOfType<CustomerManager>();
+                    _cmClient = Object.FindFirstObjectByType<CustomerManager>();
                 if (_cmClient == null)
                     return;
                 var prefab = female ? _cmClient.m_CustomerFemalePrefab : _cmClient.m_CustomerPrefab;
@@ -1461,13 +1464,49 @@ namespace CardShopCoop.Sync
             var holder = new GameObject("CoopNpcHolder_tmp");
             holder.SetActive(false);
             var clone = Object.Instantiate(prefabObject, holder.transform);
+            // Both prefab and live-worker clones stay inactive through preparation.
+            // Disable local AI before activation, including native navigation behaviours.
+            clone.SetActive(false);
+            MirrorComponents.DisableNpcLogic(clone);
             clone.transform.SetParent(null, worldPositionStays: false);
             clone.transform.position = pos;
-            clone.SetActive(true);
             Object.Destroy(holder);
+
+            // Nothing on the mirror may simulate when its visual hierarchy is activated
+            // for wardrobe binding below. Disable existing physics now, then repeat after
+            // dressing in case a cosmetic prefab introduced another component.
+            foreach (var col in clone.GetComponentsInChildren<Collider>(true))
+                col.enabled = false;
+            foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
+            {
+                rb.isKinematic = true;
+                rb.detectCollisions = false;
+            }
 
             var cust = clone.GetComponent<Customer>();
             var worker = clone.GetComponent<Worker>();
+            p.Custom = cust != null ? cust.m_CharacterCustom
+                : worker != null ? worker.m_CharacterCustom : null;
+            bool customerPrepared = kind != KindCustomer;
+            try
+            {
+                if (kind == KindCustomer && p.Custom != null && charName.Length > 0)
+                {
+                    // Rebuild copied private slot lists while the clone is safely inactive.
+                    // The preset itself is applied after activation below.
+                    CharacterTemplate.PrepareFresh(p.Custom);
+                    customerPrepared = true;
+                }
+            }
+            catch (System.Exception e)
+            {
+                CoopPlugin.Log.LogWarning($"NPC preparation '{charName}': {e.Message}");
+            }
+
+            // Game 1.0's wardrobe binds bones and blendshapes through active-only
+            // hierarchy searches. Local AI and physics are already disabled, so the
+            // cosmetic hierarchy can now be activated without starting a simulation.
+            clone.SetActive(true);
             if (worker != null)
             {
                 // WorkerManager.ActivateWorker is deliberately not used on clients: it
@@ -1491,14 +1530,18 @@ namespace CardShopCoop.Sync
                 catch (System.Exception e) { Swallow.Log(e); }
                 EnsureCardPackList(worker);
             }
-            p.Custom = cust != null ? cust.m_CharacterCustom
-                : worker != null ? worker.m_CharacterCustom : null;
             try
             {
                 if (p.Custom != null && charName.Length > 0 && !clonedLiveWorker)
                 {
                     p.Custom.CharacterName = charName;
-                    p.Custom.Initialize(); // deterministic wardrobe by name
+                    if (kind == KindCustomer)
+                    {
+                        if (customerPrepared)
+                            CharacterTemplate.ApplyDefault(p.Custom, charName);
+                    }
+                    else
+                        p.Custom.Initialize(); // workers retain their existing setup
                 }
             }
             catch (System.Exception e)
@@ -1543,22 +1586,9 @@ namespace CardShopCoop.Sync
                     p.Exclaim.SetActive(false);
             }
 
-            // CharacterCustomization must survive the strip so wardrobe changes can
-            // re-dress in place instead of Destroy+Instantiate churn
-            foreach (var mb in clone.GetComponentsInChildren<MonoBehaviour>(true))
-            {
-                if (mb == null)
-                    continue;
-                string tn = mb.GetType().Name;
-                if (tn == "Worker" || tn == "Customer" || tn == "WorkerCollider"
-                    || tn == "NavMeshAgent" || tn == "NavMeshObstacle" || tn == "Seeker"
-                    || tn == "FunnelModifier" || tn == "InteractableObject")
-                {
-                    var behaviour = mb as Behaviour;
-                    if (behaviour != null)
-                        behaviour.enabled = false;
-                }
-            }
+            // Keep cosmetics and the worker UI model; local AI stays disabled.
+            // Repeat after dressing in case preparation added a navigation component.
+            MirrorComponents.DisableNpcLogic(clone);
             foreach (var col in clone.GetComponentsInChildren<Collider>(true))
                 col.enabled = false;
             foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))

@@ -400,6 +400,7 @@ namespace CardShopCoop
         /// the game's own load-cleanup destroys objects and NOTHING destroyed in
         /// that window is a player action to forward.</summary>
         public static bool ClientReloading;
+        private readonly WorldLoadMonitor _worldLoadMonitor = new WorldLoadMonitor();
         private float _reloadStartedAt;
         private int _reloadStartedFrame;
         private bool _clientWorldArrived;
@@ -866,6 +867,11 @@ namespace CardShopCoop
         public void JoinSteam(ulong lobby, string password = "")
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";
@@ -924,6 +930,16 @@ namespace CardShopCoop
         public void StartHostingSteam(bool isPublic, string lobbyName, string password)
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
+            if (!Sync.TcgAuthority.CanStartHosting())
+            {
+                ErrorLine = "Finish the battle and close deck editing before hosting.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";
@@ -1089,7 +1105,7 @@ namespace CardShopCoop
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
-            if (ClientReloading && scene.name != "Title")
+            if (ClientReloading && scene.name == SaveTransfer.WorldSceneName)
             {
                 _clientWorldArrived = true;
                 _reloadStartedAt = Time.realtimeSinceStartup;
@@ -1141,7 +1157,7 @@ namespace CardShopCoop
             // A game-level scene loading (not "Title") while a session is live and it was
             // NOT the mod's own join reload means someone loaded a DIFFERENT world out from
             // under the session: the guest hit pause -> Load Game -> its own save
-            // (SaveLoadGameSlotSelectScreen loads "Start" mid-session), or the host loaded
+            // (SaveLoadGameSlotSelectScreen loads the shop scene mid-session), or the host loaded
             // another slot. The socket would otherwise stay open with the peer standing in a
             // world we no longer share, and the other side is never told. Shut the session
             // down cleanly, same path as the Title back-out above.
@@ -1150,7 +1166,7 @@ namespace CardShopCoop
             //     HOST's own INITIAL world load, which happens from TitleScreen BEFORE
             //     StartHosting sets Role=Host - Role is still None there, so this can't fire).
             //   - !ClientReloading: the guest's mod-driven join reload (BundleDone sets this,
-            //     and it also loads "Start") is the mod's OWN transition - never a leave.
+            //     and it also loads the shop scene) is the mod's OWN transition - never a leave.
             else if (scene.name != "Title" && Role != CoopRole.None && _net != null && !ClientReloading)
             {
                 Shutdown("left the session (world reloaded)");
@@ -1159,7 +1175,10 @@ namespace CardShopCoop
 
         private bool InGameLevel()
         {
-            var gm = CSingleton<CGameManager>.Instance;
+            // Awake publishes the real, serialized manager. The generic Instance getter
+            // can create an empty one before startup, causing the real manager to destroy
+            // itself as a duplicate and leaving every input tooltip at "F / Action Name".
+            var gm = CGameManager.m_Instance;
             return gm != null && gm.m_IsGameLevel;
         }
 
@@ -1454,10 +1473,13 @@ namespace CardShopCoop
                 TryUpgradeAutoModel();
 
             var editor = _avatars.GetEditorCustomization(_localPlayerModel.Female);
-            if (editor != null && _localModelAppliedRoot != editor.transform)
+            if (editor == null)
+                return;
+            if (_localModelAppliedRoot != editor.transform)
             {
                 string customizationBeforeApply = _localPlayerModel.CustomizationJson;
-                _avatars.ApplyLocalModel(editor, _localPlayerModel);
+                if (!_avatars.ApplyLocalModel(editor, _localPlayerModel))
+                    return;
                 _localModelAppliedRoot = editor.transform;
                 if (customizationBeforeApply != _localPlayerModel.CustomizationJson)
                 {
@@ -1611,27 +1633,41 @@ namespace CardShopCoop
             };
         }
 
+        private void CheckWorldLoad()
+        {
+            string error = _worldLoadMonitor.Poll(Time.realtimeSinceStartup,
+                GameInstance.m_HasLoadingError, false);
+            if (error == null)
+                return;
+            ErrorLine = error + " Returning to the title screen. If loading remains stuck, restart the game before retrying.";
+            CoopPlugin.Log.LogError(ErrorLine);
+            _autoPhase = 99;
+            WorldSceneLoader.AbortWorldLoad();
+            Shutdown("world load failed");
+        }
+
         /// <summary>
         /// Ends the guest's load hold from the game's actual completion signal rather than
-        /// from a guessed number of seconds.  FindObjectOfType is deliberate here: asking
+        /// from a guessed number of seconds.  FindFirstObjectByType is deliberate here: asking
         /// CSingleton&lt;ShelfManager&gt;.Instance during a scene transition can create a fake,
         /// empty manager and make the readiness check lie.
         /// </summary>
         private bool TryFinishClientReload()
         {
-            if (!InGameLevel())
+            if (!InGameLevel() || !GameInstance.m_FinishedSavefileLoading || GameInstance.m_HasLoadingError)
                 return false;
             if (!_clientWorldArrived)
                 return false;
             if (Time.frameCount <= _reloadStartedFrame || Time.realtimeSinceStartup - _reloadStartedAt < 0.25f)
                 return false;
 
-            var shelfManager = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+            var shelfManager = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
             if (shelfManager == null || !shelfManager.m_FinishLoadingObjectData)
                 return false;
 
             float elapsed = Time.realtimeSinceStartup - _reloadStartedAt;
             ClientReloading = false;
+            _worldLoadMonitor.Reset();
             _clientWorldArrived = false;
             CoopPlugin.Log.LogInfo($"Join world load completed in {elapsed:F2}s; resuming co-op sync");
 
@@ -1653,8 +1689,7 @@ namespace CardShopCoop
             return true;
         }
 
-        // NEVER CSingleton<>.Instance for scene-lifetime managers (CGameManager above
-        // is a REAL persistent singleton and stays on the getter): touched while no
+        // NEVER CSingleton<>.Instance to probe manager readiness: touched while no
         // real manager exists (client reload loading screen - InGameLevel() stays true
         // there - or host mid-session save load) the getter fabricates a fake empty
         // DontDestroyOnLoad manager that shadows the real one for the rest of the run
@@ -1665,7 +1700,7 @@ namespace CardShopCoop
         private static InventoryBase Inv()
         {
             if (_inventory == null)
-                _inventory = FindObjectOfType<InventoryBase>();
+                _inventory = FindFirstObjectByType<InventoryBase>();
             return _inventory;
         }
 
@@ -1802,6 +1837,7 @@ namespace CardShopCoop
                 new Sync.CoopModuleEntry(null, "cardboxes", patches: Sync.CardBoxOps.ApplyPatches),
                 new Sync.CoopModuleEntry(null, "furnboxes", patches: Sync.FurnitureBoxOps.ApplyPatches),
                 new Sync.CoopModuleEntry(null, "hand-protection", patches: Sync.HandProtection.ApplyPatches),
+                new Sync.CoopModuleEntry(null, "tcg-authority", patches: Sync.TcgAuthority.ApplyPatches),
             };
         }
 
@@ -1900,7 +1936,8 @@ namespace CardShopCoop
             _dispatchRetryNextFrame.Clear();
             _dispatchHeldTransfers.Clear();
             IsSteamSession = false;
-            GuestBorrowedWorld = false;
+            if (!WorldSceneLoader.LoadPending && !WorldSceneLoader.RecoveryFailed)
+                GuestBorrowedWorld = false;
             HostPassword = "";
             _joinPassword = "";
         }
@@ -2003,16 +2040,16 @@ namespace CardShopCoop
         private void NpcSweepTick()
         {
             // the shop-naming world trigger (and its "!" marker) is host-only; find it
-            // ONCE - once disabled, FindObjectOfType can never see it again and each
+            // ONCE - once disabled, FindFirstObjectByType can never see it again and each
             // retry was a full-scene scan for nothing
             if (!_renamerHandled)
             {
                 _renamerHandled = true;
-                var renamer = FindObjectOfType<ShopRenamer>();
+                var renamer = FindFirstObjectByType<ShopRenamer>();
                 if (renamer != null && renamer.gameObject.activeSelf)
                 {
                     // FIX E2: cache the 3D sign TMP BEFORE disabling - once the renamer
-                    // GameObject is inactive, FindObjectOfType can't reach it again.
+                    // GameObject is inactive, FindFirstObjectByType can't reach it again.
                     try
                     {
                         _shopSign = renamer.m_ShopName;
@@ -2033,7 +2070,7 @@ namespace CardShopCoop
                 }
             }
             if (_cmSweep == null)
-                _cmSweep = FindObjectOfType<CustomerManager>();
+                _cmSweep = FindFirstObjectByType<CustomerManager>();
             if (_cmSweep != null)
             {
                 var list = _cmSweep.GetCustomerList();
@@ -2132,7 +2169,7 @@ namespace CardShopCoop
 
         /// <summary>The game assigns neither CGameManager.Player nor
         /// InteractionPlayerController.m_Instance (both are dead statics), so find the
-        /// player controller in the scene once and cache its transform. FindObjectOfType
+        /// player controller in the scene once and cache its transform. FindFirstObjectByType
         /// never auto-creates, unlike CSingleton&lt;T&gt;.Instance.</summary>
         private Transform _playerTf;   // the MOVING body: IPC.m_WalkerCtrl (CMF walker)
         private Transform _playerCamTf; // player camera, for look yaw
@@ -2151,7 +2188,7 @@ namespace CardShopCoop
                 return _playerTf;
             var ipc = InteractionPlayerController.m_Instance;
             if (ipc == null)
-                ipc = FindObjectOfType<InteractionPlayerController>();
+                ipc = FindFirstObjectByType<InteractionPlayerController>();
             if (ipc != null)
             {
                 _playerIpc = ipc;
@@ -2227,7 +2264,7 @@ namespace CardShopCoop
 
                 var ipc = InteractionPlayerController.m_Instance;
                 if (ipc == null)
-                    ipc = FindObjectOfType<InteractionPlayerController>();
+                    ipc = FindFirstObjectByType<InteractionPlayerController>();
                 if (ipc == null)
                     return;
 
@@ -2578,6 +2615,16 @@ namespace CardShopCoop
         public void StartHosting()
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
+            if (!Sync.TcgAuthority.CanStartHosting())
+            {
+                ErrorLine = "Finish the battle and close deck editing before hosting.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";
@@ -2807,6 +2854,11 @@ namespace CardShopCoop
         public void Join(string ip, int joinPort, string password)
         {
             ErrorLine = "";
+            if (WorldSceneLoader.LoadPending || WorldSceneLoader.RecoveryFailed)
+            {
+                ErrorLine = "World loading is still recovering. Restart the game if the loading screen remains stuck.";
+                return;
+            }
             if (Role != CoopRole.None)
             {
                 ErrorLine = "Already in a session.";
@@ -3106,7 +3158,7 @@ namespace CardShopCoop
         {
             try
             {
-                var panels = FindObjectsOfType<RestockItemPanelUI>(); // active = phone open
+                var panels = FindObjectsByType<RestockItemPanelUI>(UnityEngine.FindObjectsSortMode.InstanceID); // active = phone open
                 foreach (var p in panels)
                 {
                     if (!(FiPanelIndex?.GetValue(p) is int idx) || idx < 0)
@@ -3456,6 +3508,9 @@ namespace CardShopCoop
 
         private void Shutdown(string reason)
         {
+            if (ClientReloading)
+                WorldSceneLoader.AbortWorldLoad();
+            _worldLoadMonitor.Reset();
             if (_localPlayerModel != null)
                 Util.PlayerModelStore.Save(_localPlayerModel);
             _localModelSavePending = false;
@@ -3616,7 +3671,7 @@ namespace CardShopCoop
             // guest standing in the borrowed world, so the guard MUST persist (a day-end
             // autosave or quit-save would otherwise write the host's shop to the guest's slot).
             // The title screen clears it on the clean way out.
-            if (!InGameLevel())
+            if (!InGameLevel() && !WorldSceneLoader.LoadPending && !WorldSceneLoader.RecoveryFailed)
                 GuestBorrowedWorld = false;
             if (reason != null)
             {
@@ -3703,7 +3758,12 @@ namespace CardShopCoop
             // session AND out of any game level. Post-disconnect the guest is Role.None but
             // still standing in the host's world (InGameLevel true), so the guard persists
             // there and clears only after they actually return to the menu.
-            if (GuestBorrowedWorld && Role == CoopRole.None && !InGameLevel())
+            WorldSceneLoader.TickRecovery();
+            CheckWorldLoad();
+            if (WorldSceneLoader.RecoveryFailed)
+                ErrorLine = "World load recovery failed. Restart the game before retrying; guest saving remains blocked.";
+            if (GuestBorrowedWorld && Role == CoopRole.None && !InGameLevel()
+                && !WorldSceneLoader.LoadPending && !WorldSceneLoader.RecoveryFailed)
                 GuestBorrowedWorld = false;
 
             // guest soft-lock safety net: recover from a stranded hold-box mode
@@ -4180,15 +4240,27 @@ namespace CardShopCoop
             if (_autoHostSlot >= 0)
             {
                 if (_autoPhase == 0 && _autoTimer > 6f && !InGameLevel()
-                    && CSingleton<CGameManager>.Instance != null)
+                    && CGameManager.m_Instance != null)
                 {
                     CoopPlugin.Log.LogInfo($"AUTO: loading slot {_autoHostSlot}...");
-                    Sync.SaveTransfer.ForceLoadSlot(_autoHostSlot);
-                    _autoPhase = 1;
-                    _autoTimer = 0f;
+                    try
+                    {
+                        Sync.SaveTransfer.ForceLoadSlot(_autoHostSlot);
+                        _worldLoadMonitor.Begin(Time.realtimeSinceStartup);
+                        _autoPhase = 1;
+                        _autoTimer = 0f;
+                    }
+                    catch (Exception e)
+                    {
+                        WorldSceneLoader.AbortWorldLoad();
+                        ErrorLine = "Automatic world load failed: " + e.Message;
+                        CoopPlugin.Log.LogError(ErrorLine);
+                        _autoPhase = 99;
+                    }
                 }
                 else if (_autoPhase == 1 && InGameLevel() && GameInstance.m_FinishedSavefileLoading)
                 {
+                    _worldLoadMonitor.Reset();
                     _autoPhase = 2;
                     _autoTimer = 0f;
                 }
@@ -4202,7 +4274,7 @@ namespace CardShopCoop
             else if (_autoJoinIp != null)
             {
                 if (_autoPhase == 0 && _autoTimer > 10f && !InGameLevel()
-                    && CSingleton<CGameManager>.Instance != null)
+                    && CGameManager.m_Instance != null)
                 {
                     CoopPlugin.Log.LogInfo($"AUTO: joining {_autoJoinIp}...");
                     Join(_autoJoinIp);
@@ -4215,7 +4287,7 @@ namespace CardShopCoop
             else if (_autoJoinSteamLobby != 0 && _steam != null)
             {
                 if (_autoPhase == 0 && _autoTimer > 10f && !InGameLevel()
-                    && CSingleton<CGameManager>.Instance != null)
+                    && CGameManager.m_Instance != null)
                 {
                     CoopPlugin.Log.LogInfo($"AUTO: joining Steam lobby {_autoJoinSteamLobby}...");
                     JoinSteam(_autoJoinSteamLobby);
@@ -4381,7 +4453,7 @@ namespace CardShopCoop
                 try
                 {
                     if (_lightManager == null)
-                        _lightManager = FindObjectOfType<LightManager>();
+                        _lightManager = FindFirstObjectByType<LightManager>();
                     if (_lightManager != null && MiUpdateLightData != null && CPlayerData.m_LightTimeData != null)
                     {
                         MiUpdateLightData.Invoke(_lightManager, null); // refresh bundle from live state
@@ -4611,7 +4683,7 @@ namespace CardShopCoop
                 try
                 {
                     if (_lightManager == null)
-                        _lightManager = FindObjectOfType<LightManager>();
+                        _lightManager = FindFirstObjectByType<LightManager>();
                     if (_lightManager != null)
                     {
                         if (FiTimeHour != null)
@@ -5081,6 +5153,16 @@ namespace CardShopCoop
                     {
                         if (Role != CoopRole.Client || _worldRequested || _pendingSave == null)
                             break;
+                        try
+                        {
+                            SaveTransfer.ValidateWorldLoad();
+                        }
+                        catch (Exception e)
+                        {
+                            ErrorLine = "Cannot load the received world: " + e.Message;
+                            Shutdown("world scene unavailable");
+                            break;
+                        }
                         var bundle = _bundleBuf != null ? _bundleBuf.ToArray() : new byte[0];
                         _bundleBuf = null;
                         _worldRequested = true;
@@ -5126,7 +5208,9 @@ namespace CardShopCoop
                                         + goStore + " - your own SOLO save slots are untouched, but graded cards in THIS co-op slot are now judged "
                                         + "against the host's burned serials and cert bindings, and any this PC issued itself can be flagged FAKE on the next load. "
                                         + "The previous file was kept once as .coopbak beside it.");
-                                SaveTransfer.ApplyAndLoadAsync(saveBytes, transferGen,
+                                try
+                                {
+                                    SaveTransfer.ApplyAndLoadAsync(saveBytes, transferGen,
                                     () => { },
                                     e =>
                                     {
@@ -5134,6 +5218,12 @@ namespace CardShopCoop
                                         CoopPlugin.Log.LogError("coop: world apply failed: " + e);
                                         Shutdown("world apply failed");
                                     });
+                                }
+                                catch (Exception e)
+                                {
+                                    ErrorLine = "Could not load the received world: " + e.Message;
+                                    Shutdown("world apply failed");
+                                }
                             },
                             e =>
                             {
@@ -5147,6 +5237,8 @@ namespace CardShopCoop
                         // while waiting for the invite) a 1.0.7 client forwarded all ~250
                         // as player trash actions, wiping the HOST's boxes (first field
                         // report). Suppress until vanilla reports that the world is settled.
+                        GameInstance.m_HasLoadingError = false;
+                        _worldLoadMonitor.Begin(Time.realtimeSinceStartup);
                         ClientReloading = true;
                         _clientWorldArrived = false;
                         _reloadStartedAt = Time.realtimeSinceStartup;
@@ -5240,7 +5332,10 @@ namespace CardShopCoop
             // exactly what this build did before translation existed).
             byte[] gzHostEnum = GzipLines(SafeEnumLines());
             byte[] gzHostCards = GzipLines(SafeCardsList());
-            PlayerModelStateMessage modelState = Role == CoopRole.Host ? BuildPlayerModelState() : null;
+            PlayerModelStateMessage modelState = Role == CoopRole.Host
+                ? OptionalAppearanceState.Build(BuildPlayerModelState, e =>
+                    CoopPlugin.Log.LogWarning("World transfer continuing without appearance state: " + e))
+                : null;
 
             var net = _net;
             new Thread(() =>
@@ -5619,7 +5714,7 @@ namespace CardShopCoop
         private void ApplySprayHit(SprayHitMessage message)
         {
             if (_cmSpray == null)
-                _cmSpray = FindObjectOfType<CustomerManager>();
+                _cmSpray = FindFirstObjectByType<CustomerManager>();
             if (_cmSpray == null)
                 return;
             var customers = _cmSpray.GetCustomerList();

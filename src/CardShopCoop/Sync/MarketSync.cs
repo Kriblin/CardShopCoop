@@ -14,7 +14,7 @@ namespace CardShopCoop.Sync
     /// UnityEngine.Random at each day start, so from day 2 the joiner would price cards
     /// against a market that does not exist (host customers judge his tags against the
     /// HOST's numbers). The joiner's roll is blocked outright and the host's post-roll
-    /// table is broadcast: item % changes, all seven per-expansion card % changes, and
+    /// table is broadcast: item % changes, all eight per-expansion card % changes, and
     /// the game-event price rows the phone apps read.
     ///
     /// Price HISTORY (the graph screens) is never shipped: the vanilla day-start append
@@ -151,24 +151,6 @@ namespace CardShopCoop.Sync
                 postfix: new HarmonyMethod(typeof(MarketSync), nameof(CardBaseChangedPostfix)));
         }
 
-        /// <summary>Vanilla expansions are owned by the dense GenCardMarketPriceList sync;
-        /// only modded (EPL) expansions go through the delta hook.</summary>
-        private static bool IsVanillaCardExpansion(ECardExpansionType expansion)
-        {
-            switch (expansion)
-            {
-                case ECardExpansionType.Tetramon:
-                case ECardExpansionType.Destiny:
-                case ECardExpansionType.Ghost:
-                case ECardExpansionType.Megabot:
-                case ECardExpansionType.FantasyRPG:
-                case ECardExpansionType.CatJob:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-
         private static long ModCardKey(ECardExpansionType expansion, int index, bool isDestiny)
         {
             return ((long)(int)expansion << 33) | ((long)(uint)index << 1) | (isDestiny ? 1L : 0L);
@@ -176,7 +158,7 @@ namespace CardShopCoop.Sync
 
         public static void CardPercentChangedPostfix(int cardIndex, ECardExpansionType expansionType, bool isDestiny, float percentChange)
         {
-            if (CoopCore.Role != CoopRole.Host || IsVanillaCardExpansion(expansionType))
+            if (CoopCore.Role != CoopRole.Host || CardMarketTable.IsVanillaExpansion(expansionType))
                 return;
             // Ship the ABSOLUTE percent (not the delta) so the client can converge exactly:
             // the delta is quantized and preserves any save-rounding offset, which flips a cent.
@@ -200,7 +182,7 @@ namespace CardShopCoop.Sync
 
         public static void CardBaseChangedPostfix(int cardIndex, ECardExpansionType expansionType, bool isDestiny, float price)
         {
-            if (CoopCore.Role != CoopRole.Host || IsVanillaCardExpansion(expansionType))
+            if (CoopCore.Role != CoopRole.Host || CardMarketTable.IsVanillaExpansion(expansionType))
                 return;
             long key = ModCardKey(expansionType, cardIndex, isDestiny);
             s_modCardPending.TryGetValue(key, out var p);
@@ -270,22 +252,14 @@ namespace CardShopCoop.Sync
         private static int WireChecksum(MarketStateMessage msg)
         {
             int h = 17;
-            h = HashWire(h, msg.GenCardMarketPriceList);
-            h = HashWire(h, msg.GenCardMarketPriceListDestiny);
-            h = HashWire(h, msg.GenCardMarketPriceListGhost);
-            h = HashWire(h, msg.GenCardMarketPriceListGhostBlack);
-            h = HashWire(h, msg.GenCardMarketPriceListMegabot);
-            h = HashWire(h, msg.GenCardMarketPriceListFantasyRPG);
-            h = HashWire(h, msg.GenCardMarketPriceListCatJob);
-            return h;
-        }
-
-        private static int HashWire(int h, List<MarketCardEntry> list)
-        {
-            if (list == null)
-                return h;
-            for (int i = 0; i < list.Count; i++)
-                h = h * 31 + list[i].Percent;
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceList);
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceListDestiny);
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceListGhost);
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceListGhostBlack);
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceListMegabot);
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceListFantasyRPG);
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceListCatJob);
+            h = CardMarketTable.HashWire(h, msg.GenCardMarketPriceListAscension);
             return h;
         }
 
@@ -294,25 +268,14 @@ namespace CardShopCoop.Sync
         private static int WireChecksumFromLists()
         {
             int h = 17;
-            h = HashWireList(h, CPlayerData.m_GenCardMarketPriceList);
-            h = HashWireList(h, CPlayerData.m_GenCardMarketPriceListDestiny);
-            h = HashWireList(h, CPlayerData.m_GenCardMarketPriceListGhost);
-            h = HashWireList(h, CPlayerData.m_GenCardMarketPriceListGhostBlack);
-            h = HashWireList(h, CPlayerData.m_GenCardMarketPriceListMegabot);
-            h = HashWireList(h, CPlayerData.m_GenCardMarketPriceListFantasyRPG);
-            h = HashWireList(h, CPlayerData.m_GenCardMarketPriceListCatJob);
-            return h;
-        }
-
-        private static int HashWireList(int h, List<MarketPrice> list)
-        {
-            if (list == null)
-                return h;
-            for (int i = 0; i < list.Count; i++)
-            {
-                var m = list[i];
-                h = h * 31 + (m != null ? (int)Mathf.Clamp(Mathf.RoundToInt(m.pricePercentChangeList * 100f), short.MinValue, short.MaxValue) : 0);
-            }
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceList);
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceListDestiny);
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceListGhost);
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceListGhostBlack);
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceListMegabot);
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceListFantasyRPG);
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceListCatJob);
+            h = CardMarketTable.HashLocal(h, CPlayerData.m_GenCardMarketPriceListAscension);
             return h;
         }
 
@@ -352,13 +315,14 @@ namespace CardShopCoop.Sync
                 RollGen = s_rollGen, // history-append stamp: post-roll broadcasts only
             };
             FillPercents(msg.ItemPricePercentChangeList, CPlayerData.m_ItemPricePercentChangeList, modded);
-            FillMarket(msg.GenCardMarketPriceList, CPlayerData.m_GenCardMarketPriceList);
-            FillMarket(msg.GenCardMarketPriceListDestiny, CPlayerData.m_GenCardMarketPriceListDestiny);
-            FillMarket(msg.GenCardMarketPriceListGhost, CPlayerData.m_GenCardMarketPriceListGhost);
-            FillMarket(msg.GenCardMarketPriceListGhostBlack, CPlayerData.m_GenCardMarketPriceListGhostBlack);
-            FillMarket(msg.GenCardMarketPriceListMegabot, CPlayerData.m_GenCardMarketPriceListMegabot);
-            FillMarket(msg.GenCardMarketPriceListFantasyRPG, CPlayerData.m_GenCardMarketPriceListFantasyRPG);
-            FillMarket(msg.GenCardMarketPriceListCatJob, CPlayerData.m_GenCardMarketPriceListCatJob);
+            CardMarketTable.Capture(msg.GenCardMarketPriceList, CPlayerData.m_GenCardMarketPriceList);
+            CardMarketTable.Capture(msg.GenCardMarketPriceListDestiny, CPlayerData.m_GenCardMarketPriceListDestiny);
+            CardMarketTable.Capture(msg.GenCardMarketPriceListGhost, CPlayerData.m_GenCardMarketPriceListGhost);
+            CardMarketTable.Capture(msg.GenCardMarketPriceListGhostBlack, CPlayerData.m_GenCardMarketPriceListGhostBlack);
+            CardMarketTable.Capture(msg.GenCardMarketPriceListMegabot, CPlayerData.m_GenCardMarketPriceListMegabot);
+            CardMarketTable.Capture(msg.GenCardMarketPriceListFantasyRPG, CPlayerData.m_GenCardMarketPriceListFantasyRPG);
+            CardMarketTable.Capture(msg.GenCardMarketPriceListCatJob, CPlayerData.m_GenCardMarketPriceListCatJob);
+            CardMarketTable.Capture(msg.GenCardMarketPriceListAscension, CPlayerData.m_GenCardMarketPriceListAscension);
             // game-event rows are raw prices, not clamped percents - full floats
             FillFloats(msg.SetGameEventPriceList, CPlayerData.m_SetGameEventPriceList);
             FillFloats(msg.GeneratedGameEventPriceList, CPlayerData.m_GeneratedGameEventPriceList);
@@ -432,13 +396,14 @@ namespace CardShopCoop.Sync
         {
             int rollGen = message.RollGen;
             ApplySection("item price changes", () => ReadPercentsInto(message.ItemPricePercentChangeList, CPlayerData.m_ItemPricePercentChangeList));
-            ApplySection("Tetramon market", () => ReadMarketInto(message.GenCardMarketPriceList, CPlayerData.m_GenCardMarketPriceList));
-            ApplySection("Destiny market", () => ReadMarketInto(message.GenCardMarketPriceListDestiny, CPlayerData.m_GenCardMarketPriceListDestiny));
-            ApplySection("Ghost market", () => ReadMarketInto(message.GenCardMarketPriceListGhost, CPlayerData.m_GenCardMarketPriceListGhost));
-            ApplySection("Ghost Black market", () => ReadMarketInto(message.GenCardMarketPriceListGhostBlack, CPlayerData.m_GenCardMarketPriceListGhostBlack));
-            ApplySection("Megabot market", () => ReadMarketInto(message.GenCardMarketPriceListMegabot, CPlayerData.m_GenCardMarketPriceListMegabot));
-            ApplySection("FantasyRPG market", () => ReadMarketInto(message.GenCardMarketPriceListFantasyRPG, CPlayerData.m_GenCardMarketPriceListFantasyRPG));
-            ApplySection("CatJob market", () => ReadMarketInto(message.GenCardMarketPriceListCatJob, CPlayerData.m_GenCardMarketPriceListCatJob));
+            ApplySection("Tetramon market", () => CardMarketTable.Apply(message.GenCardMarketPriceList, CPlayerData.m_GenCardMarketPriceList));
+            ApplySection("Destiny market", () => CardMarketTable.Apply(message.GenCardMarketPriceListDestiny, CPlayerData.m_GenCardMarketPriceListDestiny));
+            ApplySection("Ghost market", () => CardMarketTable.Apply(message.GenCardMarketPriceListGhost, CPlayerData.m_GenCardMarketPriceListGhost));
+            ApplySection("Ghost Black market", () => CardMarketTable.Apply(message.GenCardMarketPriceListGhostBlack, CPlayerData.m_GenCardMarketPriceListGhostBlack));
+            ApplySection("Megabot market", () => CardMarketTable.Apply(message.GenCardMarketPriceListMegabot, CPlayerData.m_GenCardMarketPriceListMegabot));
+            ApplySection("FantasyRPG market", () => CardMarketTable.Apply(message.GenCardMarketPriceListFantasyRPG, CPlayerData.m_GenCardMarketPriceListFantasyRPG));
+            ApplySection("CatJob market", () => CardMarketTable.Apply(message.GenCardMarketPriceListCatJob, CPlayerData.m_GenCardMarketPriceListCatJob));
+            ApplySection("Ascension market", () => CardMarketTable.Apply(message.GenCardMarketPriceListAscension, CPlayerData.m_GenCardMarketPriceListAscension));
             ApplySection("set game-event prices", () => ReadFloatsInto(message.SetGameEventPriceList, CPlayerData.m_SetGameEventPriceList));
             ApplySection("generated game-event prices", () => ReadFloatsInto(message.GeneratedGameEventPriceList, CPlayerData.m_GeneratedGameEventPriceList));
             ApplySection("game-event price changes", () => ReadFloatsInto(message.GameEventPricePercentChangeList, CPlayerData.m_GameEventPricePercentChangeList));
@@ -618,50 +583,6 @@ namespace CardShopCoop.Sync
                 while (list.Count <= i)
                     list.Add(0f); // grow-on-demand (no-EPL fallback)
                 list[i] = v;
-            }
-        }
-
-        private static void FillMarket(List<MarketCardEntry> out_list, List<MarketPrice> list)
-        {
-            int n = Mathf.Min(list?.Count ?? 0, ushort.MaxValue);
-            for (int i = 0; i < n; i++)
-            {
-                out_list.Add(new MarketCardEntry
-                {
-                    Percent = (short)Mathf.Clamp(Mathf.RoundToInt((list[i] != null ? list[i].pricePercentChangeList : 0f) * 100f), short.MinValue, short.MaxValue),
-                    // The card BASE, for the same reason the item bases ride along above: a save
-                    // whose card price block failed to restore leaves every base at 0, and the
-                    // percent alone multiplies 0 into $0.00 cards forever. Full float - unlike the
-                    // percent these are raw prices with no game clamp.
-                    GeneratedMarketPrice = list[i] != null ? list[i].generatedMarketPrice : 0f,
-                });
-            }
-        }
-
-        private static void ReadMarketInto(List<MarketCardEntry> entries, List<MarketPrice> list)
-        {
-            if (list == null)
-                return;
-            for (int i = 0; i < entries.Count; i++)
-            {
-                float v = entries[i].Percent / 100f;
-                float gen = entries[i].GeneratedMarketPrice;
-                // CGameData.PropagateLoadData gates all seven card tables on ONE unrelated
-                // list (m_CardPriceSetList), so a join save whose gate read false can leave
-                // this table shorter than the host's. Create rows as they arrive instead of
-                // silently skipping; the instance is kept so RestockManager's alias stays live.
-                while (list.Count <= i)
-                    list.Add(new MarketPrice { pastPricePercentChangeList = new List<float>() });
-                var row = list[i];
-                if (row == null)
-                {
-                    row = new MarketPrice { pastPricePercentChangeList = new List<float>() };
-                    list[i] = row;
-                }
-                row.pricePercentChangeList = v; // in place: consumers hold the object
-                // The snapshot is authoritative, including rows the host legitimately leaves at
-                // zero; copying the value makes a stale client row converge to the host state.
-                row.generatedMarketPrice = gen;
             }
         }
 

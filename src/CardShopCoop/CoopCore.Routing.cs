@@ -193,7 +193,7 @@ namespace CardShopCoop
                     try
                     {
                         if (_lightManager == null)
-                            _lightManager = FindObjectOfType<LightManager>();
+                            _lightManager = FindFirstObjectByType<LightManager>();
                         if (_lightManager != null)
                         {
                             EnforceClientClock(_lightManager);
@@ -881,7 +881,7 @@ namespace CardShopCoop
                             }
                         }
                         if (_lightManager == null)
-                            _lightManager = FindObjectOfType<LightManager>();
+                            _lightManager = FindFirstObjectByType<LightManager>();
                         if (_lightManager == null)
                             return;
                         EnforceClientClock(_lightManager);

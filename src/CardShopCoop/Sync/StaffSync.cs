@@ -149,7 +149,7 @@ namespace CardShopCoop.Sync
             // DontDestroyOnLoad manager that shadows the real one for the rest of the
             // run (see WorldSync.ResolveShelfManager)
             if (_wm == null)
-                _wm = UnityEngine.Object.FindObjectOfType<WorkerManager>();
+                _wm = UnityEngine.Object.FindFirstObjectByType<WorkerManager>();
             return _wm;
         }
 
@@ -637,7 +637,7 @@ namespace CardShopCoop.Sync
                 WorkerData workerData = WorkerManager.GetWorkerData(index);
                 if (CPlayerData.m_ShopLevel + 1 < workerData.shopLevelRequired)
                     return;
-                var gm = CSingleton<CGameManager>.Instance;
+                var gm = CGameManager.m_Instance;
                 if (gm != null && gm.m_IsPrologue && !workerData.prologueShow)
                     return;
                 if (CPlayerData.m_CoinAmountDouble < (double)workerData.hiringCost)
@@ -797,7 +797,7 @@ namespace CardShopCoop.Sync
             var saved = CPlayerData.m_WorkerSaveDataList;
             // One scene lookup per state apply, not per worker: the interaction screen caches
             // the bonus count when it opens, so an open screen must be refreshed from the mirror.
-            var interactScreen = UnityEngine.Object.FindObjectOfType<WorkerInteractUIScreen>(true);
+            var interactScreen = UnityEngine.Object.FindFirstObjectByType<WorkerInteractUIScreen>(UnityEngine.FindObjectsInactive.Include);
             for (int i = 0; i < n; i++)
             {
                 var e = message.Entries[i];
@@ -854,7 +854,7 @@ namespace CardShopCoop.Sync
             if (!_hireScreenSearched)
             {
                 _hireScreenSearched = true;
-                _hireScreen = UnityEngine.Object.FindObjectOfType<HireWorkerScreen>(true);
+                _hireScreen = UnityEngine.Object.FindFirstObjectByType<HireWorkerScreen>(UnityEngine.FindObjectsInactive.Include);
             }
             if (_hireScreen == null || _hireScreen.m_HireWorkerPanelUIList == null
                 || MiPanelEvaluateHired == null || FiPanelScreen == null)

@@ -115,7 +115,7 @@ namespace CardShopCoop.Sync
         private ShelfManager Sm()
         {
             if (_sm == null)
-                _sm = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+                _sm = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
             return _sm;
         }
 
@@ -277,7 +277,7 @@ namespace CardShopCoop.Sync
                     }
                     var t = comp.transform;
                     var io = comp as InteractableObject ?? t.GetComponent<InteractableObject>();
-                    if (dropIfHostMoving && io != null && io.GetIsMovingObject())
+                    if (dropIfHostMoving && io != null && (io.GetIsMovingObject() || TcgAuthority.PlayerAtTable(io)))
                     {
                         // the game's move machinery owns this transform right now; writing a
                         // stale incoming pose fights the drag and re-asserts the old pose.
@@ -361,7 +361,7 @@ namespace CardShopCoop.Sync
         /// mutate its gameplay state.</summary>
         public static Component ResolveObjectByKey(int key)
         {
-            var sm = UnityEngine.Object.FindObjectOfType<ShelfManager>();
+            var sm = UnityEngine.Object.FindFirstObjectByType<ShelfManager>();
             return sm == null ? null : Resolve(sm, key);
         }
 

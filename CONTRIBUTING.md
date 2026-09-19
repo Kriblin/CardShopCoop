@@ -55,6 +55,37 @@ decompiled game source, saves, and local build output out of your contribution.
 
 ## Checks before a pull request
 
+For the complete local game-compatibility check, run from the repository root with
+Python 3 and the normal `GamePath` configuration:
+
+```sh
+python tools/validate_compatibility.py
+```
+
+This runs restore, required whitespace verification, a Release build, all five C#
+harnesses, and the validation tool's regression tests. It stops on the first failure
+and writes logs plus `result.json` under the ignored `diag/compatibility/` directory.
+The report records the source commit, whether the checkout was modified, SDK version,
+local game assembly hash, Steam build ID when available, built plugin hash, and
+on-disk plugin DLL hashes. It does not establish which mods were loaded in-game or
+identify another player's installation. Record content packs and host/guest gameplay
+results separately in the [TODO checklist](TODO.md).
+
+To also create an **unverified local candidate** after the checks pass:
+
+```sh
+python tools/validate_compatibility.py --package
+```
+
+Candidates stay in ignored `dist/release/`. The archive contains only the built
+plugin, README, license, the current version's exact `CHANGELOG.md` section, and a
+validation-status note. Game assemblies, installed mods, and saves are excluded.
+The tool never deploys or publishes; a successful run does not complete two-player
+sign-off. Use that same changelog section for release descriptions after runtime
+validation passes. Version selection remains in `Directory.Build.props`; this tool
+does not change it.
+
+
 Run the same formatting check as CI from the repository root:
 
 ```sh
