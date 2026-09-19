@@ -84,6 +84,13 @@ foreach (bool female in new[] { false, true })
 }
 Throws(() => CharacterTemplate.InitializeFresh(Custom(false), true), "wrong-gender presets are not used");
 Throws(() => CharacterTemplate.InitializeFresh(new CC.CharacterCustomization(), false), "missing presets fail explicitly");
+var staged = Custom(false);
+CharacterTemplate.PrepareFresh(staged);
+Check(staged.Applies == 0 && staged.m_HasInit,
+    "inactive customer preparation builds slots without applying a wardrobe");
+CharacterTemplate.ApplyDefault(staged, "Male0");
+Check(staged.Applies == 1 && staged.StoredCharacterData.CharacterName == "Male0",
+    "customer wardrobe can be applied after visual activation");
 var throwing = Custom(false);
 var materialBank = new SharedMaterials();
 UnityEngine.Object.SceneObject = materialBank;

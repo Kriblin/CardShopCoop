@@ -7,8 +7,13 @@ namespace UnityEngine
     public static class Application
     {
         public static bool Available = true;
+        public static string AvailableScene = "Start";
         public static string CheckedScene;
-        public static bool CanStreamedLevelBeLoaded(string name) { CheckedScene = name; return Available; }
+        public static bool CanStreamedLevelBeLoaded(string name)
+        {
+            CheckedScene = name;
+            return Available && name == AvailableScene;
+        }
     }
 }
 namespace UnityEngine.SceneManagement
@@ -35,7 +40,6 @@ namespace UnityEngine.SceneManagement
 }
 public class CGameManager
 {
-    public const string k_StartSceneName = "StartOptimized";
     public static CGameManager m_Instance = new();
     private static bool m_InitLoaded = true;
     public static bool Initialized => m_InitLoaded;

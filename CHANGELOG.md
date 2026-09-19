@@ -5,6 +5,18 @@ True co-op multiplayer for TCG Card Shop Simulator. Both players must run the
 
 ---
 
+## 1.3.6
+**NPCs are dressed again for the joining player.**
+
+- Fixed customer and worker mirrors appearing without clothes because Game 1.0 could
+  not bind wardrobe renderers while their visual hierarchy was inactive. Mirrors now prepare
+  their movement and physics safely before activation, then apply the host's outfit
+  after the cosmetic hierarchy is available.
+- Fixed builds failing when the installed game no longer exposes
+  `CGameManager.k_StartSceneName`. Joining now detects the current `Start` shop scene
+  while retaining compatibility with builds that use `StartOptimized`.
+- Game 1.0 two-player rendering and worker appearance mods still need in-game verification.
+
 ## 1.3.5
 **Player and NPC mirrors now prepare their movement components safely.**
 

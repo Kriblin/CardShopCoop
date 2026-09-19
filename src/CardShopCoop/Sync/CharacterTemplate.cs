@@ -14,6 +14,15 @@ namespace CardShopCoop.Sync
 
         internal static void InitializeFresh(CC.CharacterCustomization custom, bool female, string characterName = null)
         {
+            PrepareFresh(custom);
+            ApplyDefault(custom, string.IsNullOrEmpty(characterName) ? (female ? "Female" : "Male") + "0" : characterName);
+        }
+
+        /// <summary>Build the private runtime slots copied prefabs are missing. The caller
+        /// may keep the object inactive for this phase, but must activate its visual hierarchy
+        /// before applying a preset because the game's wardrobe only visits active renderers.</summary>
+        internal static void PrepareFresh(CC.CharacterCustomization custom)
+        {
             if (HairObjects == null || ApparelObjects == null)
                 throw new MissingFieldException("Character customization runtime slots are unavailable");
             // Unity can copy the public initialized flag without copying private runtime lists.
@@ -37,7 +46,6 @@ namespace CardShopCoop.Sync
             {
                 custom.UI = ui;
             }
-            ApplyDefault(custom, string.IsNullOrEmpty(characterName) ? (female ? "Female" : "Male") + "0" : characterName);
         }
 
         internal static void ApplyDefault(CC.CharacterCustomization custom, string name)

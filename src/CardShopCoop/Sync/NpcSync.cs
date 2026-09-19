@@ -1472,8 +1472,41 @@ namespace CardShopCoop.Sync
             clone.transform.position = pos;
             Object.Destroy(holder);
 
+            // Nothing on the mirror may simulate when its visual hierarchy is activated
+            // for wardrobe binding below. Disable existing physics now, then repeat after
+            // dressing in case a cosmetic prefab introduced another component.
+            foreach (var col in clone.GetComponentsInChildren<Collider>(true))
+                col.enabled = false;
+            foreach (var rb in clone.GetComponentsInChildren<Rigidbody>(true))
+            {
+                rb.isKinematic = true;
+                rb.detectCollisions = false;
+            }
+
             var cust = clone.GetComponent<Customer>();
             var worker = clone.GetComponent<Worker>();
+            p.Custom = cust != null ? cust.m_CharacterCustom
+                : worker != null ? worker.m_CharacterCustom : null;
+            bool customerPrepared = kind != KindCustomer;
+            try
+            {
+                if (kind == KindCustomer && p.Custom != null && charName.Length > 0)
+                {
+                    // Rebuild copied private slot lists while the clone is safely inactive.
+                    // The preset itself is applied after activation below.
+                    CharacterTemplate.PrepareFresh(p.Custom);
+                    customerPrepared = true;
+                }
+            }
+            catch (System.Exception e)
+            {
+                CoopPlugin.Log.LogWarning($"NPC preparation '{charName}': {e.Message}");
+            }
+
+            // Game 1.0's wardrobe binds bones and blendshapes through active-only
+            // hierarchy searches. Local AI and physics are already disabled, so the
+            // cosmetic hierarchy can now be activated without starting a simulation.
+            clone.SetActive(true);
             if (worker != null)
             {
                 // WorkerManager.ActivateWorker is deliberately not used on clients: it
@@ -1497,15 +1530,16 @@ namespace CardShopCoop.Sync
                 catch (System.Exception e) { Swallow.Log(e); }
                 EnsureCardPackList(worker);
             }
-            p.Custom = cust != null ? cust.m_CharacterCustom
-                : worker != null ? worker.m_CharacterCustom : null;
             try
             {
                 if (p.Custom != null && charName.Length > 0 && !clonedLiveWorker)
                 {
                     p.Custom.CharacterName = charName;
                     if (kind == KindCustomer)
-                        CharacterTemplate.InitializeFresh(p.Custom, female, charName);
+                    {
+                        if (customerPrepared)
+                            CharacterTemplate.ApplyDefault(p.Custom, charName);
+                    }
                     else
                         p.Custom.Initialize(); // workers retain their existing setup
                 }
@@ -1600,7 +1634,6 @@ namespace CardShopCoop.Sync
             p.RenderYaw = 0f;
             p.AnimSpeed = 0f;
             p.AppliedFlags = -1;
-            clone.SetActive(true);
         }
     }
 }

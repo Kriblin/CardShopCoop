@@ -179,6 +179,22 @@ bool UsesField(MethodDefinition method, string declaringType, string name) => me
     && method.Body.Instructions.Any(i => i.Operand is FieldReference f && f.DeclaringType.Name == declaringType && f.Name == name);
 bool Calls(MethodDefinition method, string declaringType, string name) => method?.HasBody == true
     && method.Body.Instructions.Any(i => i.Operand is MethodReference m && m.DeclaringType.Name == declaringType && m.Name == name);
+string StringArgument(MethodDefinition method, string declaringType, string name)
+{
+    if (method?.HasBody != true)
+        return null;
+    var instructions = method.Body.Instructions;
+    for (int i = 0; i < instructions.Count; i++)
+    {
+        if (instructions[i].Operand is not MethodReference called
+            || called.DeclaringType.Name != declaringType || called.Name != name)
+            continue;
+        for (int j = i - 1; j >= 0 && j >= i - 5; j--)
+            if (instructions[j].OpCode.Code == Mono.Cecil.Cil.Code.Ldstr)
+                return instructions[j].Operand as string;
+    }
+    return null;
+}
 // M10: inspect installed navigation dependencies and the production cleanup wiring.
 foreach (string type in new[] { "Pathfinding.SimpleSmoothModifier", "Pathfinding.AIBase" })
     Require(Find(type)?.CustomAttributes.Any(a => a.AttributeType.FullName == "UnityEngine.RequireComponent"
@@ -195,12 +211,14 @@ Require(Find("AvatarManager").Module.GetTypes().Where(t => t.FullName.Contains("
     "preview uses dependency-aware removal");
 Require(Calls(Method("NpcSync", "Spawn"), "MirrorComponents", "DisableNpcLogic"),
     "NPC spawn disables local navigation through the shared policy");
-string startupScene = Find("CGameManager")?.Fields.FirstOrDefault(f => f.Name == "k_StartSceneName")?.Constant as string;
-Require(startupScene == "StartOptimized", "native startup scene is StartOptimized");
-Require(Find("SaveTransfer")?.Fields.FirstOrDefault(f => f.Name == "WorldSceneName")?.Constant as string == startupScene,
-    "built save transfer scene matches installed game constant");
+string startupScene = Find("CGameManager")?.Fields.FirstOrDefault(f => f.Name == "k_StartSceneName")?.Constant as string
+    ?? StringArgument(Method("TitleScreen", "OnPressStartGame"), "CGameManager", "LoadMainLevelAsync");
+Require(startupScene is "Start" or "StartOptimized", "native startup scene is supported");
+Require(Find("WorldSceneLoader")?.Fields.Any(f => f.Constant as string == startupScene) == true
+    && Calls(Method("SaveTransfer", "get_WorldSceneName"), "WorldSceneLoader", "get_WorldSceneName"),
+    "save transfer resolves a supported installed-game startup scene");
 foreach (string name in new[] { "OnPressStartGame", "OnPressConfirmOverwrite", "OnPressLoadGame" })
-    Require(Method("TitleScreen", name)?.Body.Instructions.Any(i => Equals(i.Operand, startupScene)) == true,
+    Require(StringArgument(Method("TitleScreen", name), "CGameManager", "LoadMainLevelAsync") == startupScene,
         "title startup scene in " + name);
 Require(UsesField(Method("CGameManager", "LoadMainLevelAsync"), "CGameManager", "m_LoadGameIndex"),
     "native load selects m_LoadGameIndex");

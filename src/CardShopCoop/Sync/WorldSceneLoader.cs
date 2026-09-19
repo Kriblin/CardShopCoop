@@ -8,11 +8,28 @@ namespace CardShopCoop.Sync
 {
     internal static class WorldSceneLoader
     {
+        // The current PC build loads "Start". Some Game 1.0 builds used
+        // "StartOptimized" and exposed it through CGameManager.k_StartSceneName, but that
+        // field is no longer part of the game API. Resolve the shipped scene directly so
+        // both layouts remain joinable without a compile-time game-member dependency.
+        private const string CurrentWorldSceneName = "Start";
+        private const string LegacyWorldSceneName = "StartOptimized";
         private static Coroutine _loadRoutine;
         private static CGameManager _loadOwner;
         private static AsyncOperation _sceneOperation;
         private static bool _recovering;
         internal static bool LoadPending => _loadRoutine != null || _sceneOperation != null || _recovering;
+        internal static string WorldSceneName
+        {
+            get
+            {
+                if (Application.CanStreamedLevelBeLoaded(CurrentWorldSceneName))
+                    return CurrentWorldSceneName;
+                if (Application.CanStreamedLevelBeLoaded(LegacyWorldSceneName))
+                    return LegacyWorldSceneName;
+                return CurrentWorldSceneName;
+            }
+        }
 
         // Unity cannot cancel a submitted scene operation. Let it finish before returning
         // to Title, and keep the borrowed-world save guard until that return completes.
@@ -65,8 +82,9 @@ namespace CardShopCoop.Sync
                 throw new InvalidOperationException("A previous world load is still recovering. Restart the game if recovery does not finish.");
             if (CGameManager.m_Instance == null)
                 throw new InvalidOperationException("The game manager is not ready for world loading.");
-            if (!Application.CanStreamedLevelBeLoaded(CGameManager.k_StartSceneName))
-                throw new InvalidOperationException("The installed game cannot load the required scene '" + CGameManager.k_StartSceneName + "'. Check the game build and installation.");
+            string sceneName = WorldSceneName;
+            if (!Application.CanStreamedLevelBeLoaded(sceneName))
+                throw new InvalidOperationException("The installed game cannot load the required shop scene ('Start' or 'StartOptimized'). Check the game build and installation.");
         }
 
         internal static void Start(CGameManager gm, int slot)
@@ -96,7 +114,7 @@ namespace CardShopCoop.Sync
                 yield return new WaitForSecondsRealtime(2f);
                 try
                 {
-                    _sceneOperation = SceneManager.LoadSceneAsync(CGameManager.k_StartSceneName);
+                    _sceneOperation = SceneManager.LoadSceneAsync(WorldSceneName);
                     if (_sceneOperation == null)
                         throw new InvalidOperationException("The game rejected the world scene load.");
                 }

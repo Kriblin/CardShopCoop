@@ -667,7 +667,7 @@ namespace CardShopCoop.Sync
             }
         }
 
-        public const string WorldSceneName = CGameManager.k_StartSceneName;
+        public static string WorldSceneName => WorldSceneLoader.WorldSceneName;
 
         // Check before any scratch-file, injected-save or manager-state changes.
         // A missing scene otherwise fails inside a coroutine, after its caller returned.
